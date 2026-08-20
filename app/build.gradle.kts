@@ -41,8 +41,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.google.code.gson:gson:2.10.1")
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.okhttp.client)
+    implementation(libs.google.gson)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
