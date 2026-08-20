@@ -108,10 +108,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
                         isRecording = true
                         val recorded = attendanceViewModel.recordCheckIn()
                         checkInMessage = when {
-                            recorded -> {
-                                attendanceViewModel.fetchAttendanceHistory()
-                                "Check-in recorded for today. You can enter the gym now."
-                            }
+                            recorded -> "Check-in recorded for today. You can enter the gym now."
                             attendanceViewModel.lastCheckInError != null -> attendanceViewModel.lastCheckInError ?: "Could not save the visit."
                             else -> "You are already checked in today."
                         }
@@ -138,10 +135,8 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
                         val authenticated = if (currentUser != null) authViewModel.verifyCurrentUserPassword(password)
                         else authViewModel.signInForGymEntry(memberViewModel.memberForm?.email.orEmpty(), password)
                         if (authenticated) {
-                            memberViewModel.refreshFromFirebase()
                             val recorded = attendanceViewModel.recordCheckIn()
                             if (recorded) {
-                                attendanceViewModel.fetchAttendanceHistory()
                                 errorMessage = null
                                 navController.popBackStack()
                             } else {
