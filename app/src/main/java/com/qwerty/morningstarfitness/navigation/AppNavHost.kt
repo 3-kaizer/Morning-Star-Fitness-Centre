@@ -80,8 +80,13 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             var checkInMessage by remember { mutableStateOf<String?>(null) }
             var isMemberDataLoading by remember { mutableStateOf(true) }
             LaunchedEffect(Unit) {
+                // Always restore the remembered member first so Enter the Gym works even after logout.
                 memberViewModel.loadLocalMember()
-                if (authViewModel.currentUser() != null) { memberViewModel.refreshFromFirebase(); attendanceViewModel.fetchAttendanceHistory() }
+                // Then refresh from Firebase when a session is available, keeping the displayed data current.
+                if (authViewModel.currentUser() != null) {
+                    memberViewModel.refreshFromFirebase()
+                    attendanceViewModel.fetchAttendanceHistory()
+                }
                 isMemberDataLoading = false
             }
             QrEntryScreen(qrCodeValue = memberViewModel.ensureMembershipQr(), fullName = memberViewModel.memberForm?.fullName, memberId = memberViewModel.memberId, status = memberViewModel.getMembershipStatus(), membershipExpiry = memberViewModel.membershipExpiry, isLoading = isMemberDataLoading, isRecording = isRecording, checkInMessage = checkInMessage, onBack = { navController.popBackStack() }, onPasswordEntry = { navController.navigate(ROUTE_PASSWORD_ENTRY) }, onRecordCheckIn = {
@@ -117,7 +122,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             val scope = rememberCoroutineScope()
             PaymentScreen(plan = memberViewModel.selectedPlan, paymentMethod = memberViewModel.paymentMethod, isProcessing = paymentViewModel.isProcessing || authViewModel.isProcessing, errorMessage = paymentViewModel.errorMessage ?: authViewModel.registrationError, onMethodChange = { memberViewModel.updatePaymentMethod(it) }, onBack = { navController.popBackStack() }, onSimulateSuccess = {
                 val plan = memberViewModel.selectedPlan ?: return@PaymentScreen
-                paymentViewModel.simulateSuccessfulPayment(amount = plan.priceKsh, purpose = "membership_registration", referenceId = "REG-${UUID.randomUUID()}") { success -> if (success) scope.launch { val form = memberViewModel.memberForm ?: return@launch; memberViewModel.prepareMembership(plan); val qr = memberViewModel.generateQrCode(); if (authViewModel.createUser(form, plan, qr, memberViewModel.memberId, memberViewModel.membershipStart, memberViewModel.membershipExpiry)) { memberViewModel.completePaymentLocally(plan); paymentHistoryViewModel.refresh(); navController.navigate(ROUTE_SUCCESS) } } }
+                paymentViewModel.simulateSuccessfulPayment(amount = plan.priceKsh, purpose = "membership_registration", referenceId = "REG-${UUID.randomUUID()}") { success -> if (success) scope.launch { val form = memberViewModel.memberForm ?: return@launch; memberViewModel.prepareMembership(plan); val qr = memberViewModel.generateQrCode(forceNew = true); if (authViewModel.createUser(form, plan, qr, memberViewModel.memberId, memberViewModel.membershipStart, memberViewModel.membershipExpiry)) { memberViewModel.completePaymentLocally(plan); paymentHistoryViewModel.refresh(); navController.navigate(ROUTE_SUCCESS) } } }
             }, onSimulateCancel = { paymentViewModel.simulateCancelledPayment { } })
         }
         composable(ROUTE_RENEW) { PlanScreen(onBack = { navController.popBackStack() }, onContinue = { plan -> memberViewModel.updateSelectedPlan(plan); navController.navigate(ROUTE_RENEW_PAYMENT) }) }
