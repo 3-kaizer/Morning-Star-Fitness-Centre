@@ -80,40 +80,80 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             var checkInMessage by remember { mutableStateOf<String?>(null) }
             var isMemberDataLoading by remember { mutableStateOf(true) }
             LaunchedEffect(Unit) {
-                // Always restore the remembered member first so Enter the Gym works even after logout.
                 memberViewModel.loadLocalMember()
-                // Then refresh from Firebase when a session is available, keeping the displayed data current.
                 if (authViewModel.currentUser() != null) {
                     memberViewModel.refreshFromFirebase()
                     attendanceViewModel.fetchAttendanceHistory()
                 }
                 isMemberDataLoading = false
             }
-            QrEntryScreen(qrCodeValue = memberViewModel.ensureMembershipQr(), fullName = memberViewModel.memberForm?.fullName, memberId = memberViewModel.memberId, status = memberViewModel.getMembershipStatus(), membershipExpiry = memberViewModel.membershipExpiry, isLoading = isMemberDataLoading, isRecording = isRecording, checkInMessage = checkInMessage, onBack = { navController.popBackStack() }, onPasswordEntry = { navController.navigate(ROUTE_PASSWORD_ENTRY) }, onRecordCheckIn = {
-                if (!isRecording) scope.launch {
-                    if (authViewModel.currentUser() == null) { checkInMessage = "Show this QR to the front-desk scanner to record your visit."; return@launch }
-                    isRecording = true
-                    val recorded = attendanceViewModel.recordCheckIn()
-                    checkInMessage = when { recorded -> { attendanceViewModel.fetchAttendanceHistory(); "Check-in recorded for today." }; attendanceViewModel.lastCheckInError != null -> attendanceViewModel.lastCheckInError ?: "Could not save the visit."; else -> "You are already checked in today." }
-                    isRecording = false
+            QrEntryScreen(
+                qrCodeValue = memberViewModel.ensureMembershipQr(),
+                fullName = memberViewModel.memberForm?.fullName,
+                memberId = memberViewModel.memberId,
+                status = memberViewModel.getMembershipStatus(),
+                membershipExpiry = memberViewModel.membershipExpiry,
+                isLoading = isMemberDataLoading,
+                isRecording = isRecording,
+                checkInMessage = checkInMessage,
+                onBack = { navController.popBackStack() },
+                onPasswordEntry = { navController.navigate(ROUTE_PASSWORD_ENTRY) },
+                onRecordCheckIn = {
+                    if (!isRecording) scope.launch {
+                        if (authViewModel.currentUser() == null) {
+                            checkInMessage = "Verify your password to record this visit."
+                            navController.navigate(ROUTE_PASSWORD_ENTRY)
+                            return@launch
+                        }
+                        isRecording = true
+                        val recorded = attendanceViewModel.recordCheckIn()
+                        checkInMessage = when {
+                            recorded -> {
+                                attendanceViewModel.fetchAttendanceHistory()
+                                "Check-in recorded for today. You can enter the gym now."
+                            }
+                            attendanceViewModel.lastCheckInError != null -> attendanceViewModel.lastCheckInError ?: "Could not save the visit."
+                            else -> "You are already checked in today."
+                        }
+                        isRecording = false
+                    }
                 }
-            })
+            )
         }
 
         composable(ROUTE_PASSWORD_ENTRY) {
-            val scope = rememberCoroutineScope(); var isVerifying by remember { mutableStateOf(false) }; var errorMessage by remember { mutableStateOf<String?>(null) }
-            PasswordEntryScreen(memberName = memberViewModel.memberForm?.fullName, isVerifying = isVerifying, errorMessage = errorMessage, onBack = { navController.popBackStack() }, onVerify = { password ->
-                scope.launch {
-                    isVerifying = true; errorMessage = null
-                    val currentUser = authViewModel.currentUser()
-                    val authenticated = if (currentUser != null) authViewModel.verifyCurrentUserPassword(password) else authViewModel.signInForGymEntry(memberViewModel.memberForm?.email.orEmpty(), password)
-                    if (authenticated) {
-                        memberViewModel.refreshFromFirebase(); val recorded = attendanceViewModel.recordCheckIn()
-                        if (recorded) { attendanceViewModel.fetchAttendanceHistory(); navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_PASSWORD_ENTRY) { inclusive = true } } } else errorMessage = attendanceViewModel.lastCheckInError ?: "You are already checked in today."
-                    } else errorMessage = "Incorrect password. Please try again."
-                    isVerifying = false
+            val scope = rememberCoroutineScope()
+            var isVerifying by remember { mutableStateOf(false) }
+            var errorMessage by remember { mutableStateOf<String?>(null) }
+            PasswordEntryScreen(
+                memberName = memberViewModel.memberForm?.fullName,
+                isVerifying = isVerifying,
+                errorMessage = errorMessage,
+                onBack = { navController.popBackStack() },
+                onVerify = { password ->
+                    scope.launch {
+                        isVerifying = true
+                        errorMessage = null
+                        val currentUser = authViewModel.currentUser()
+                        val authenticated = if (currentUser != null) authViewModel.verifyCurrentUserPassword(password)
+                        else authViewModel.signInForGymEntry(memberViewModel.memberForm?.email.orEmpty(), password)
+                        if (authenticated) {
+                            memberViewModel.refreshFromFirebase()
+                            val recorded = attendanceViewModel.recordCheckIn()
+                            if (recorded) {
+                                attendanceViewModel.fetchAttendanceHistory()
+                                errorMessage = null
+                                navController.popBackStack()
+                            } else {
+                                errorMessage = attendanceViewModel.lastCheckInError ?: "You are already checked in today."
+                            }
+                        } else {
+                            errorMessage = "Incorrect password. Please try again."
+                        }
+                        isVerifying = false
+                    }
                 }
-            })
+            )
         }
 
         composable(ROUTE_REGISTRATION) { RegistrationScreen(onContinue = { form -> memberViewModel.updateMemberForm(form); navController.navigate(ROUTE_PLAN) }) }
