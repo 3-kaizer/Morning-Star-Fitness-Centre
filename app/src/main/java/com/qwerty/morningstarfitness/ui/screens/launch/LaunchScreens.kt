@@ -37,6 +37,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 import com.qwerty.morningstarfitness.R
@@ -46,7 +47,7 @@ private val OnboardingSurface = Color(0xFF181818)
 private val OnboardingAccent = Color(0xFFFF7A18)
 
 // Real CC0/public-domain gym photographs from Wikimedia Commons.
-// They are loaded online, with a bundled illustration used as a guaranteed fallback.
+// They are loaded online, with bundled illustrations used as a guaranteed fallback.
 private val onboardingPhotos = listOf(
     "https://commons.wikimedia.org/wiki/Special:FilePath/Gym_workout_machine.jpg?width=1200",
     "https://commons.wikimedia.org/wiki/Special:FilePath/Gym_workout_machines.jpg?width=1200",
@@ -60,30 +61,13 @@ fun SplashScreen(onFinished: () -> Unit) {
         onFinished()
     }
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(OnboardingBackground),
+        modifier = Modifier.fillMaxSize().background(OnboardingBackground),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "MORNING STAR",
-                color = OnboardingAccent,
-                style = MaterialTheme.typography.headlineLarge
-            )
-            Text(
-                "FITNESS CENTRE",
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-                letterSpacing = 1.8.sp
-            )
-            Text(
-                "TRAIN • TRACK • TRANSFORM",
-                color = Color.White.copy(alpha = 0.55f),
-                fontSize = 10.sp,
-                modifier = Modifier.padding(top = 10.dp),
-                letterSpacing = 1.6.sp
-            )
+            Text("MORNING STAR", color = OnboardingAccent, style = MaterialTheme.typography.headlineLarge)
+            Text("FITNESS CENTRE", color = Color.White, style = MaterialTheme.typography.titleMedium, letterSpacing = 1.8.sp)
+            Text("TRAIN • TRACK • TRANSFORM", color = Color.White.copy(alpha = 0.55f), fontSize = 10.sp, modifier = Modifier.padding(top = 10.dp), letterSpacing = 1.6.sp)
         }
     }
 }
@@ -91,39 +75,20 @@ fun SplashScreen(onFinished: () -> Unit) {
 @Composable
 fun OnboardingScreen(onFinished: () -> Unit) {
     var page by remember { mutableIntStateOf(0) }
-    val titles = listOf(
-        "Train with purpose",
-        "Your membership, always with you",
-        "Track every visit"
-    )
+    val titles = listOf("Train with purpose", "Your membership, always with you", "Track every visit")
     val bodies = listOf(
         "Build strength, consistency, and confidence at Morning Star.",
         "Register once, keep your permanent member QR, and renew when needed.",
         "View attendance, membership status, trainers, and the gym shop from one dashboard."
     )
-    val fallbackArt = listOf(
-        R.drawable.onboarding_strength,
-        R.drawable.onboarding_membership,
-        R.drawable.onboarding_progress
-    )
-    val photoCaptions = listOf(
-        "YOUR TRAINING STARTS HERE",
-        "ONE QR • ONE MEMBERSHIP",
-        "KNOW YOUR PROGRESS"
-    )
+    val fallbackArt = listOf(R.drawable.onboarding_strength, R.drawable.onboarding_membership, R.drawable.onboarding_progress)
+    val photoCaptions = listOf("YOUR TRAINING STARTS HERE", "ONE QR • ONE MEMBERSHIP", "KNOW YOUR PROGRESS")
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(OnboardingBackground)
-            .padding(horizontal = 22.dp, vertical = 20.dp),
+        modifier = Modifier.fillMaxSize().background(OnboardingBackground).padding(horizontal = 22.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("MORNING STAR", color = OnboardingAccent, fontSize = 12.sp, letterSpacing = 1.7.sp)
                 Text("FITNESS CENTRE", color = Color.White, fontSize = 10.sp, letterSpacing = 1.2.sp)
@@ -134,24 +99,11 @@ fun OnboardingScreen(onFinished: () -> Unit) {
         Spacer(Modifier.height(22.dp))
 
         Crossfade(targetState = page, animationSpec = tween(280), label = "onboarding") { index ->
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(280.dp)
+                    modifier = Modifier.fillMaxWidth().height(280.dp)
                         .clip(RoundedCornerShape(26.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    OnboardingAccent.copy(alpha = 0.22f),
-                                    OnboardingSurface,
-                                    Color(0xFF222222)
-                                )
-                            )
-                        )
+                        .background(Brush.linearGradient(listOf(OnboardingAccent.copy(alpha = 0.22f), OnboardingSurface, Color(0xFF222222))))
                         .border(1.dp, OnboardingAccent.copy(alpha = 0.28f), RoundedCornerShape(26.dp))
                         .padding(12.dp),
                     contentAlignment = Alignment.Center
@@ -162,54 +114,25 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                         contentScale = ContentScale.Crop,
                         placeholder = painterResource(fallbackArt[index]),
                         error = painterResource(fallbackArt[index]),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(20.dp))
+                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp))
                     )
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.42f))
-                                )
-                            )
+                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).background(
+                            Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.42f)))
+                        )
                     )
-                    Text(
-                        photoCaptions[index],
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        letterSpacing = 1.3.sp,
-                        modifier = Modifier.align(Alignment.BottomStart).padding(18.dp)
-                    )
+                    Text(photoCaptions[index], color = Color.White, fontSize = 11.sp, letterSpacing = 1.3.sp, modifier = Modifier.align(Alignment.BottomStart).padding(18.dp))
                 }
 
-                Text(
-                    titles[index],
-                    color = Color.White,
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.padding(top = 24.dp)
-                )
-                Text(
-                    bodies[index],
-                    color = Color.LightGray.copy(alpha = 0.82f),
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                )
+                Text(titles[index], color = Color.White, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 24.dp))
+                Text(bodies[index], color = Color.LightGray.copy(alpha = 0.82f), fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.fillMaxWidth().padding(top = 10.dp))
             }
         }
 
         Spacer(Modifier.height(18.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
             repeat(titles.size) { index ->
-                Box(
-                    modifier = Modifier
-                        .size(if (index == page) 24.dp else 7.dp, 7.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(if (index == page) OnboardingAccent else Color.White.copy(alpha = 0.18f))
-                )
+                Box(modifier = Modifier.size(if (index == page) 24.dp else 7.dp, 7.dp).clip(RoundedCornerShape(50)).background(if (index == page) OnboardingAccent else Color.White.copy(alpha = 0.18f)))
             }
         }
 
@@ -232,9 +155,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                 onClick = onFinished,
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.White.copy(alpha = 0.72f)),
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-            ) {
-                Text("SKIP", fontSize = 12.sp, letterSpacing = 0.8.sp)
-            }
+            ) { Text("SKIP", fontSize = 12.sp, letterSpacing = 0.8.sp) }
         }
     }
 }
