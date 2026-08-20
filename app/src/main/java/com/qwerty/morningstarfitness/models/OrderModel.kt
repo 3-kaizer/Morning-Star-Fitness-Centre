@@ -11,17 +11,17 @@ data class OrderItem(
 
 data class OrderModel(
     val orderId: String = "",
-    val userId: String = "",
     val memberId: String = "",
+    val userId: String = "",
     val customerName: String = "",
     val customerPhone: String = "",
     val customerEmail: String = "",
     val items: List<OrderItem> = emptyList(),
     val totalAmount: Int = 0,
-    val status: String = "pending", // pending, ready, picked_up
-    val paymentStatus: String = "unpaid", // unpaid, paid, cancelled
+    val status: String = "pending",
+    val paymentStatus: String = "unpaid",
     val paymentMethod: String = "demo_mpesa",
-    val fulfilmentMethod: String = "pickup", // pickup, delivery
+    val fulfilmentMethod: String = "pickup",
     val deliveryLocation: String = "",
     val deliveryAddress: String = "",
     val orderedAt: Date = Date(),
