@@ -84,7 +84,7 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Loads the locally saved member so Gym Entry can show the QR without normal sign-in. */
+    /** Loads the remembered member so Gym Entry can show the saved QR/details without dashboard sign-in. */
     suspend fun loadLocalMember(): Boolean {
         return try {
             val p = store.read()
@@ -166,6 +166,8 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun generateQrCode(): String {
+        val existing = qrCodeValue?.takeIf { it.isNotBlank() }
+        if (existing != null) return existing
         val value = "GYM-" + UUID.randomUUID().toString()
         qrCodeValue = value
         persist()
@@ -236,11 +238,13 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Clears only in-progress UI state. The remembered member is intentionally kept for Gym Entry. */
     fun clearLocalData() {
-        memberForm = null; selectedPlan = null; paymentMethod = "mpesa"; paymentStatus = "pending"
-        qrCodeValue = null; memberId = null; membershipStart = null; membershipExpiry = null; renewalError = null
+        // Keep the persisted member profile/QR so the next Gym Entry can remember this device's member.
+        paymentMethod = "mpesa"
+        paymentStatus = "paid"
+        renewalError = null
         profileSaveError = null
-        viewModelScope.launch { store.clear() }
     }
 
     fun verifySecurityAnswer(answer: String): Boolean {
