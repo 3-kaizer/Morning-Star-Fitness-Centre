@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "707349859385",
+    "firebase_url": "https://morning-star-6c5e6-default-rtdb.firebaseio.com",
+    "project_id": "morning-star-6c5e6",
+    "storage_bucket": "morning-star-6c5e6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:707349859385:android:e9e473af373b6591f291e8",
+        "android_client_info": {
+          "package_name": "com.qwerty.morningstarfitness"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0csLLG4_a4lDxyvvDTsFIgpEujgj_8iI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
