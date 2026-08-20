@@ -38,19 +38,20 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import kotlinx.coroutines.delay
+import coil3.request.ImageRequest
 import com.qwerty.morningstarfitness.R
+import kotlinx.coroutines.delay
 
 private val OnboardingBackground = Color(0xFF101010)
 private val OnboardingSurface = Color(0xFF181818)
 private val OnboardingAccent = Color(0xFFFF7A18)
 
-// User-selected Unsplash photography: one image is displayed on each onboarding page.
-// The existing Coil AsyncImage setup keeps the onboarding resilient with local fallbacks.
+// User-selected Unsplash photography. 800px is sufficient for the onboarding
+// card while reducing the first-download payload compared with 1200px.
 private val onboardingPhotos = listOf(
-    "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=1200&q=80&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1728486145245-d4cb0c9c3470?w=1200&q=80&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1641361777339-0ee075cf3ab4?w=1200&q=80&auto=format&fit=crop"
+    "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1728486145245-d4cb0c9c3470?w=800&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1641361777339-0ee075cf3ab4?w=800&q=80&auto=format&fit=crop"
 )
 
 private val onboardingFallbacks = listOf(
@@ -87,6 +88,14 @@ fun OnboardingScreen(onFinished: () -> Unit) {
         "View attendance, membership status, trainers, and the gym shop from one dashboard."
     )
     val photoCaptions = listOf("YOUR TRAINING STARTS HERE", "ONE QR • ONE MEMBERSHIP", "KNOW YOUR PROGRESS")
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val imageLoader = remember(context) { OnboardingImageLoader.create(context) }
+
+    // Warm Coil's memory/disk cache immediately so swiping to the next page
+    // normally does not wait for a fresh network request.
+    LaunchedEffect(imageLoader) {
+        OnboardingImageLoader.preload(context, imageLoader, onboardingPhotos)
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().background(OnboardingBackground).padding(horizontal = 22.dp, vertical = 20.dp),
@@ -111,7 +120,13 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
-                        model = onboardingPhotos[index],
+                        model = ImageRequest.Builder(context)
+                            .data(onboardingPhotos[index])
+                            .memoryCacheKey(onboardingPhotos[index])
+                            .diskCacheKey(onboardingPhotos[index])
+                            .crossfade(180)
+                            .build(),
+                        imageLoader = imageLoader,
                         contentDescription = "Morning Star Fitness Centre onboarding gym photograph",
                         contentScale = ContentScale.Crop,
                         placeholder = painterResource(onboardingFallbacks[index]),
