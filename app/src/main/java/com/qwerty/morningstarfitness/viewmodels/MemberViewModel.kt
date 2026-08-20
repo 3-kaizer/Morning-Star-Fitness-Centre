@@ -165,9 +165,10 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         persist()
     }
 
-    fun generateQrCode(): String {
+    /** Generate a fresh QR for a brand-new registration; otherwise preserve the member's permanent QR. */
+    fun generateQrCode(forceNew: Boolean = false): String {
         val existing = qrCodeValue?.takeIf { it.isNotBlank() }
-        if (existing != null) return existing
+        if (!forceNew && existing != null) return existing
         val value = "GYM-" + UUID.randomUUID().toString()
         qrCodeValue = value
         persist()
@@ -238,9 +239,8 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Clears only in-progress UI state. The remembered member is intentionally kept for Gym Entry. */
+    /** Clears only transient state. The remembered member remains available to Gym Entry after logout. */
     fun clearLocalData() {
-        // Keep the persisted member profile/QR so the next Gym Entry can remember this device's member.
         paymentMethod = "mpesa"
         paymentStatus = "paid"
         renewalError = null
