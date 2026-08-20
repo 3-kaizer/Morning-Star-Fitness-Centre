@@ -44,6 +44,7 @@ firebase-database = { group = "com.google.firebase", name = "firebase-database" 
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "kotlinxCoroutines" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 okhttp-client = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 google-gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 
@@ -51,4 +52,3 @@ google-gson = { group = "com.google.code.gson", name = "gson", version.ref = "gs
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
-
