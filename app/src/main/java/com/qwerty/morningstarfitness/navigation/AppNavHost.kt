@@ -48,9 +48,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
         scope.launch {
             memberViewModel.refreshFromFirebase()
             attendanceViewModel.fetchAttendanceHistory()
-            navController.navigate(ROUTE_HOME) {
-                popUpTo(ROUTE_ENTRY) { inclusive = true }
-            }
+            navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
         }
     }
 
@@ -60,7 +58,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
                 onCreateAccount = { navController.navigate(ROUTE_REGISTRATION) },
                 onLogin = { navController.navigate(ROUTE_LOGIN) },
                 onEnterGym = {
-                    // Gym entry is a QR fast-lane. Never send the member through the normal login screen.
+                    // Gym entry is always the QR fast-lane. It never opens dashboard login.
                     navController.navigate(ROUTE_SCAN_ENTRY)
                 }
             )
@@ -85,11 +83,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             ManualEntryScreen(
                 onBack = { navController.popBackStack() },
                 onSuccess = { goHome(scope) },
-                onForgotPassword = { email ->
-                    authViewModel.sendPasswordReset(email) { _, message ->
-                        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                    }
-                },
+                onForgotPassword = { email -> authViewModel.sendPasswordReset(email) { _, message -> Toast.makeText(context, message, Toast.LENGTH_LONG).show() } },
                 onPasswordSubmitted = { email, password ->
                     authViewModel.signIn(
                         email,
@@ -105,12 +99,19 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             val scope = rememberCoroutineScope()
             var isRecording by remember { mutableStateOf(false) }
             var checkInMessage by remember { mutableStateOf<String?>(null) }
+            var isMemberDataLoading by remember { mutableStateOf(true) }
 
             LaunchedEffect(Unit) {
+                // First load the locally saved member. This works for both freshly registered
+                // members and returning members and does not require normal dashboard login.
+                memberViewModel.loadLocalMember()
+
+                // When a Firebase session exists, refresh from RTDB so the display is current.
                 if (authViewModel.currentUser() != null) {
                     memberViewModel.refreshFromFirebase()
                     attendanceViewModel.fetchAttendanceHistory()
                 }
+                isMemberDataLoading = false
             }
 
             QrEntryScreen(
@@ -119,6 +120,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
                 memberId = memberViewModel.memberId,
                 status = memberViewModel.getMembershipStatus(),
                 membershipExpiry = memberViewModel.membershipExpiry,
+                isLoading = isMemberDataLoading,
                 isRecording = isRecording,
                 checkInMessage = checkInMessage,
                 onBack = { navController.popBackStack() },
@@ -161,7 +163,6 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
                     scope.launch {
                         isVerifying = true
                         errorMessage = null
-
                         val currentUser = authViewModel.currentUser()
                         val authenticated = if (currentUser != null) {
                             authViewModel.verifyCurrentUserPassword(password)
@@ -175,9 +176,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
                             val recorded = attendanceViewModel.recordCheckIn()
                             if (recorded) {
                                 attendanceViewModel.fetchAttendanceHistory()
-                                navController.navigate(ROUTE_HOME) {
-                                    popUpTo(ROUTE_PASSWORD_ENTRY) { inclusive = true }
-                                }
+                                navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_PASSWORD_ENTRY) { inclusive = true } }
                             } else {
                                 errorMessage = attendanceViewModel.lastCheckInError ?: "You are already checked in today."
                             }
@@ -190,21 +189,10 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             )
         }
 
-        composable(ROUTE_REGISTRATION) {
-            RegistrationScreen(onContinue = { form ->
-                memberViewModel.updateMemberForm(form)
-                navController.navigate(ROUTE_PLAN)
-            })
-        }
+        composable(ROUTE_REGISTRATION) { RegistrationScreen(onContinue = { form -> memberViewModel.updateMemberForm(form); navController.navigate(ROUTE_PLAN) }) }
 
         composable(ROUTE_PLAN) {
-            PlanScreen(
-                onBack = { navController.popBackStack() },
-                onContinue = { plan ->
-                    memberViewModel.updateSelectedPlan(plan)
-                    navController.navigate(ROUTE_PAYMENT)
-                }
-            )
+            PlanScreen(onBack = { navController.popBackStack() }, onContinue = { plan -> memberViewModel.updateSelectedPlan(plan); navController.navigate(ROUTE_PAYMENT) })
         }
 
         composable(ROUTE_PAYMENT) {
@@ -218,11 +206,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
                 onBack = { navController.popBackStack() },
                 onSimulateSuccess = {
                     val plan = memberViewModel.selectedPlan ?: return@PaymentScreen
-                    paymentViewModel.simulateSuccessfulPayment(
-                        amount = plan.priceKsh,
-                        purpose = "membership_registration",
-                        referenceId = "REG-${UUID.randomUUID()}"
-                    ) { success ->
+                    paymentViewModel.simulateSuccessfulPayment(amount = plan.priceKsh, purpose = "membership_registration", referenceId = "REG-${UUID.randomUUID()}") { success ->
                         if (success) scope.launch {
                             val form = memberViewModel.memberForm ?: return@launch
                             memberViewModel.prepareMembership(plan)
@@ -238,15 +222,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             )
         }
 
-        composable(ROUTE_RENEW) {
-            PlanScreen(
-                onBack = { navController.popBackStack() },
-                onContinue = { plan ->
-                    memberViewModel.updateSelectedPlan(plan)
-                    navController.navigate(ROUTE_RENEW_PAYMENT)
-                }
-            )
-        }
+        composable(ROUTE_RENEW) { PlanScreen(onBack = { navController.popBackStack() }, onContinue = { plan -> memberViewModel.updateSelectedPlan(plan); navController.navigate(ROUTE_RENEW_PAYMENT) }) }
 
         composable(ROUTE_RENEW_PAYMENT) {
             PaymentScreen(
@@ -258,18 +234,9 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
                 onBack = { navController.popBackStack() },
                 onSimulateSuccess = {
                     val plan = memberViewModel.selectedPlan ?: return@PaymentScreen
-                    paymentViewModel.simulateSuccessfulPayment(
-                        amount = plan.priceKsh,
-                        purpose = "membership_renewal",
-                        referenceId = "RENEW-${UUID.randomUUID()}",
-                        planId = plan.id,
-                        planLabel = plan.label,
-                        planDuration = plan.durationMonths
-                    ) { success ->
+                    paymentViewModel.simulateSuccessfulPayment(amount = plan.priceKsh, purpose = "membership_renewal", referenceId = "RENEW-${UUID.randomUUID()}", planId = plan.id, planLabel = plan.label, planDuration = plan.durationMonths) { success ->
                         if (success) memberViewModel.renewMembership(plan) { renewed ->
-                            if (renewed) navController.navigate(ROUTE_HOME) {
-                                popUpTo(ROUTE_HOME) { inclusive = true }
-                            }
+                            if (renewed) navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_HOME) { inclusive = true } }
                         }
                     }
                 },
@@ -278,26 +245,15 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
         }
 
         composable(ROUTE_SUCCESS) {
-            SuccessScreen(
-                firstName = firstName(),
-                plan = memberViewModel.selectedPlan,
-                qrCodeValue = memberViewModel.qrCodeValue ?: "",
-                onContinue = { navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_ENTRY) { inclusive = true } } }
-            )
+            SuccessScreen(firstName = firstName(), plan = memberViewModel.selectedPlan, qrCodeValue = memberViewModel.qrCodeValue ?: "", onContinue = { navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_ENTRY) { inclusive = true } } })
         }
 
         composable(ROUTE_HOME) {
-            LaunchedEffect(Unit) {
-                memberViewModel.syncWithFirebase()
-                attendanceViewModel.fetchAttendanceHistory()
-            }
+            LaunchedEffect(Unit) { memberViewModel.syncWithFirebase(); attendanceViewModel.fetchAttendanceHistory() }
             HomeScreen(
-                firstName = firstName(),
-                plan = memberViewModel.selectedPlan,
+                firstName = firstName(), plan = memberViewModel.selectedPlan,
                 onLogout = {
-                    authViewModel.signOut()
-                    memberViewModel.clearLocalData()
-                    attendanceViewModel.clearHistory()
+                    authViewModel.signOut(); memberViewModel.clearLocalData(); attendanceViewModel.clearHistory()
                     navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_HOME) { inclusive = true } }
                 },
                 onOpenShop = { navController.navigate(ROUTE_SHOP) },
@@ -314,41 +270,18 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
         }
 
         composable(ROUTE_ATTENDANCE) { AttendanceScreen(entries = attendanceViewModel.attendanceHistory, onBack = { navController.popBackStack() }) }
-
         composable(ROUTE_SHOP) {
-            ShopScreen(
-                shopViewModel = shopViewModel,
-                memberViewModel = memberViewModel,
-                paymentViewModel = paymentViewModel,
-                onBack = { navController.popBackStack() },
-                onOrderSuccess = { orderId ->
-                    navController.navigate("${ROUTE_ORDER_SUCCESS}/$orderId") {
-                        popUpTo(ROUTE_SHOP) { inclusive = true }
-                    }
-                }
-            )
+            ShopScreen(shopViewModel = shopViewModel, memberViewModel = memberViewModel, paymentViewModel = paymentViewModel,
+                onBack = { navController.popBackStack() }, onOrderSuccess = { orderId -> navController.navigate("${ROUTE_ORDER_SUCCESS}/$orderId") { popUpTo(ROUTE_SHOP) { inclusive = true } } })
         }
-
         composable("${ROUTE_ORDER_SUCCESS}/{orderId}") { backStackEntry ->
-            OrderSuccessScreen(
-                orderId = backStackEntry.arguments?.getString("orderId") ?: "",
-                viewModel = shopViewModel,
-                onContinue = { navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_HOME) { inclusive = true } } }
-            )
+            OrderSuccessScreen(orderId = backStackEntry.arguments?.getString("orderId") ?: "", viewModel = shopViewModel,
+                onContinue = { navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_HOME) { inclusive = true } } })
         }
-
         composable(ROUTE_PROFILE) {
             val context = LocalContext.current
-            ProfileScreen(
-                memberForm = memberViewModel.memberForm,
-                plan = memberViewModel.selectedPlan,
-                onBack = { navController.popBackStack() },
-                onSave = { updated ->
-                    memberViewModel.updateProfile(updated) { _, message ->
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                    }
-                }
-            )
+            ProfileScreen(memberForm = memberViewModel.memberForm, plan = memberViewModel.selectedPlan, onBack = { navController.popBackStack() },
+                onSave = { updated -> memberViewModel.updateProfile(updated) { _, message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() } })
         }
     }
 }
