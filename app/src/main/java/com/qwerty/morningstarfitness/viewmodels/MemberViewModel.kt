@@ -84,33 +84,49 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun syncWithFirebase() {
-        viewModelScope.launch { refreshFromFirebase() }
-    }
-
-    private fun restoreSavedMember() {
-        viewModelScope.launch {
+    /** Loads the locally saved member so Gym Entry can show the QR without normal sign-in. */
+    suspend fun loadLocalMember(): Boolean {
+        return try {
             val p = store.read()
             val name = p.entries.firstOrNull { it.key.name == "full_name" }?.value
-            if (name != null) {
-                fun get(k: String) = p.entries.firstOrNull { it.key.name == k }?.value.orEmpty()
-                memberForm = MemberFormState(
-                    fullName = get("full_name"), phone = get("phone"), email = get("email"), dob = get("dob"),
-                    gender = get("gender"), emergencyContact = get("emergency_contact"),
-                    securityQuestion = get("security_question"), securityAnswer = get("security_answer")
-                )
-                val label = get("selected_plan_label")
-                if (label.isNotBlank()) selectedPlan = MembershipPlanModel(get("selected_plan_id"), label, get("selected_plan_price").toIntOrNull() ?: 0, get("selected_plan_duration").toIntOrNull() ?: 0)
-                paymentMethod = get("payment_method").ifBlank { "mpesa" }
-                paymentStatus = get("payment_status").ifBlank { "pending" }
-                qrCodeValue = get("qr_code").ifBlank { null }
-                memberId = get("member_id").ifBlank { null }
-                membershipStart = get("membership_start").ifBlank { null }
-                membershipExpiry = get("membership_expiry").ifBlank { null }
+            if (name.isNullOrBlank()) {
+                isLoaded = true
+                return false
             }
+            fun get(k: String) = p.entries.firstOrNull { it.key.name == k }?.value.orEmpty()
+            memberForm = MemberFormState(
+                fullName = get("full_name"),
+                phone = get("phone"),
+                email = get("email"),
+                dob = get("dob"),
+                gender = get("gender"),
+                emergencyContact = get("emergency_contact"),
+                securityQuestion = get("security_question"),
+                securityAnswer = get("security_answer")
+            )
+            val label = get("selected_plan_label")
+            selectedPlan = if (label.isBlank()) null else MembershipPlanModel(
+                get("selected_plan_id"), label,
+                get("selected_plan_price").toIntOrNull() ?: 0,
+                get("selected_plan_duration").toIntOrNull() ?: 0
+            )
+            paymentMethod = get("payment_method").ifBlank { "mpesa" }
+            paymentStatus = get("payment_status").ifBlank { "pending" }
+            qrCodeValue = get("qr_code").ifBlank { null }
+            memberId = get("member_id").ifBlank { null }
+            membershipStart = get("membership_start").ifBlank { null }
+            membershipExpiry = get("membership_expiry").ifBlank { null }
             isLoaded = true
+            true
+        } catch (e: Exception) {
+            profileSaveError = e.message ?: "Could not load saved member details."
+            isLoaded = true
+            false
         }
     }
+
+    fun syncWithFirebase() { viewModelScope.launch { refreshFromFirebase() } }
+    private fun restoreSavedMember() { viewModelScope.launch { loadLocalMember() } }
 
     fun updateMemberForm(form: MemberFormState) { memberForm = form; persist() }
     fun updateSelectedPlan(plan: MembershipPlanModel) { selectedPlan = plan; persist() }
@@ -119,19 +135,13 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
     fun updateProfile(form: MemberFormState, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
         profileSaveError = null
         val uid = auth.currentUser?.uid
-        if (uid == null) {
-            onResult(false, "You are not signed in.")
-            return
-        }
+        if (uid == null) { onResult(false, "You are not signed in."); return }
         viewModelScope.launch {
             try {
                 database.reference.child("members").child(uid).updateChildren(
                     mapOf(
-                        "fullName" to form.fullName.trim(),
-                        "phone" to form.phone.trim(),
-                        "email" to form.email.trim(),
-                        "dob" to form.dob,
-                        "gender" to form.gender,
+                        "fullName" to form.fullName.trim(), "phone" to form.phone.trim(),
+                        "email" to form.email.trim(), "dob" to form.dob, "gender" to form.gender,
                         "emergencyContact" to form.emergencyContact.trim()
                     )
                 ).await()
@@ -173,7 +183,9 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun isExpired(value: String): Boolean = try {
         val expiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(value) ?: return true
-        val today = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.time
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.time
         expiry.before(today)
     } catch (_: Exception) { true }
 
@@ -186,16 +198,13 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
                 val memberRef = database.reference.child("members").child(uid)
                 val snapshot = memberRef.get().await()
                 val existingExpiry = snapshot.child("membershipExpiry").getValue(String::class.java)
-                val calendar = Calendar.getInstance()
-                val today = Date()
+                val calendar = Calendar.getInstance(); val today = Date()
                 val existing = existingExpiry?.let { runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it) }.getOrNull() }
                 val renewalBase = if (existing != null && existing.after(today)) existing else today
-                calendar.time = renewalBase
-                calendar.add(Calendar.MONTH, plan.durationMonths)
+                calendar.time = renewalBase; calendar.add(Calendar.MONTH, plan.durationMonths)
                 val newStart = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(renewalBase)
                 val newExpiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
-                val paymentId = "RENEW-" + UUID.randomUUID().toString().take(8).uppercase()
-                val now = System.currentTimeMillis()
+                val paymentId = "RENEW-" + UUID.randomUUID().toString().take(8).uppercase(); val now = System.currentTimeMillis()
                 memberRef.updateChildren(mapOf(
                     "planId" to plan.id, "planLabel" to plan.label, "planPrice" to plan.priceKsh,
                     "planDuration" to plan.durationMonths, "membershipStart" to newStart,
@@ -208,11 +217,9 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
                     "method" to "demo_mpesa", "paidAt" to now, "membershipStart" to newStart,
                     "membershipExpiry" to newExpiry
                 )).await()
-                refreshFromFirebase()
-                onComplete(true)
+                refreshFromFirebase(); onComplete(true)
             } catch (e: Exception) {
-                renewalError = e.message ?: "Renewal failed"
-                onComplete(false)
+                renewalError = e.message ?: "Renewal failed"; onComplete(false)
             } finally { isRenewing = false }
         }
     }
@@ -220,10 +227,12 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
     private fun persist() {
         val member = memberForm ?: return
         viewModelScope.launch {
-            store.saveMember(member.fullName, member.phone, member.email, member.dob, member.gender,
+            store.saveMember(
+                member.fullName, member.phone, member.email, member.dob, member.gender,
                 member.emergencyContact, member.securityQuestion, member.securityAnswer,
                 selectedPlan?.id, selectedPlan?.label, selectedPlan?.priceKsh, selectedPlan?.durationMonths,
-                paymentMethod, paymentStatus, qrCodeValue, memberId, membershipStart, membershipExpiry)
+                paymentMethod, paymentStatus, qrCodeValue, memberId, membershipStart, membershipExpiry
+            )
         }
     }
 
