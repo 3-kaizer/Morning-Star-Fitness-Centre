@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,7 +89,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
         "View attendance, membership status, trainers, and the gym shop from one dashboard."
     )
     val photoCaptions = listOf("YOUR TRAINING STARTS HERE", "ONE QR • ONE MEMBERSHIP", "KNOW YOUR PROGRESS")
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val imageLoader = remember(context) { OnboardingImageLoader.create(context) }
 
     // Warm Coil's memory/disk cache immediately so swiping to the next page
@@ -124,7 +125,6 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                             .data(onboardingPhotos[index])
                             .memoryCacheKey(onboardingPhotos[index])
                             .diskCacheKey(onboardingPhotos[index])
-                            .crossfade(180)
                             .build(),
                         imageLoader = imageLoader,
                         contentDescription = "Morning Star Fitness Centre onboarding gym photograph",
