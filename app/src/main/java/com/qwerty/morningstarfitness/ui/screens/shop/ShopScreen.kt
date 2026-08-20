@@ -20,7 +20,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -45,7 +44,6 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.SubcomposeAsyncImage
 import com.qwerty.morningstarfitness.models.ProductModel
 import com.qwerty.morningstarfitness.ui.components.BrandMark
-import com.qwerty.morningstarfitness.ui.components.FormField
 import com.qwerty.morningstarfitness.ui.components.GhostButton
 import com.qwerty.morningstarfitness.ui.components.Heading
 import com.qwerty.morningstarfitness.ui.components.PrimaryButton
@@ -69,79 +67,39 @@ fun ShopScreen(
     val itemCount = shopViewModel.getItemCount()
     val memberForm = memberViewModel.memberForm
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(PulseColors.Background)
-            .padding(20.dp),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 420.dp)
-                .verticalScroll(rememberScrollState())
-                .background(PulseColors.Surface, RoundedCornerShape(20.dp))
-                .padding(24.dp)
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = {
-                    if (showingCheckout) showingCheckout = false else onBack()
-                }) {
+    Box(Modifier.fillMaxSize().background(PulseColors.Background).padding(20.dp), contentAlignment = Alignment.TopCenter) {
+        Column(Modifier.fillMaxWidth().widthIn(max = 420.dp).verticalScroll(rememberScrollState()).background(PulseColors.Surface, RoundedCornerShape(20.dp)).padding(24.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { if (showingCheckout) showingCheckout = false else onBack() }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = PulseColors.TextPrimary)
                 }
             }
-
             BrandMark()
             Heading(if (showingCheckout) "Checkout" else "Gym shop")
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(Modifier.height(4.dp))
 
             if (!showingCheckout) {
-                Text(
-                    text = "Useful gym essentials available for you.",
-                    color = PulseColors.TextMuted,
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-
+                Text("Useful gym essentials available for you.", color = PulseColors.TextMuted, fontSize = 14.sp)
+                Spacer(Modifier.height(20.dp))
                 shopViewModel.products.forEach { product ->
-                    ProductRow(
-                        product = product,
-                        quantity = cart[product.id] ?: 0,
-                        onQuantityChange = { newQty ->
-                            if (!isProcessing) shopViewModel.updateQuantity(product.id, newQty)
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    ProductRow(product, cart[product.id] ?: 0) { newQty -> if (!isProcessing) shopViewModel.updateQuantity(product.id, newQty) }
+                    Spacer(Modifier.height(10.dp))
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(Modifier.height(12.dp))
                 CartSummary(itemCount, cartTotal)
-
                 if (shopViewModel.orderError != null) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(text = shopViewModel.orderError!!, color = PulseColors.Error, fontSize = 12.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Text(shopViewModel.orderError!!, color = PulseColors.Error, fontSize = 12.sp)
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-                PrimaryButton(
-                    text = "Proceed to Checkout",
-                    onClick = {
-                        shopViewModel.initiateCheckout()
-                        showingCheckout = true
-                    },
-                    enabled = itemCount > 0 && !isProcessing
-                )
+                Spacer(Modifier.height(16.dp))
+                PrimaryButton("Proceed to Checkout", { shopViewModel.initiateCheckout(); showingCheckout = true }, itemCount > 0 && !isProcessing)
             } else {
                 CheckoutContent(
                     shopViewModel = shopViewModel,
                     memberForm = memberForm,
                     paymentViewModel = paymentViewModel,
                     cartTotal = cartTotal,
-                    onOrderSuccess = { orderId ->
-                        shopViewModel.finalizeOrder()
-                        onOrderSuccess(orderId)
-                    },
+                    onOrderSuccess = { orderId -> shopViewModel.finalizeOrder(); onOrderSuccess(orderId) },
                     onCancel = { showingCheckout = false }
                 )
             }
@@ -151,13 +109,7 @@ fun ShopScreen(
 
 @Composable
 fun CartSummary(itemCount: Int, cartTotal: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp))
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
+    Row(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(if (itemCount == 0) "Cart is empty" else "$itemCount item(s)", color = PulseColors.TextPrimary, fontSize = 14.sp)
         Text("KSh $cartTotal", color = PulseColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 14.sp)
     }
@@ -174,79 +126,66 @@ fun CheckoutContent(
 ) {
     Column {
         Text("ORDER SUMMARY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseColors.AccentLime)
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(Modifier.height(12.dp))
         SummaryField("Customer", memberForm?.fullName ?: "Unknown")
+        SummaryField("Member ID", memberForm?.memberId ?: "Not assigned")
         SummaryField("Phone", memberForm?.phone ?: "Unknown")
 
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Fulfilment", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = PulseColors.TextPrimary)
-        Spacer(modifier = Modifier.height(8.dp))
-        FulfilmentOption(shopViewModel.fulfilmentMethod == "pickup", "Front Desk Pickup", Icons.Default.Store) { shopViewModel.fulfilmentMethod = "pickup" }
-        Spacer(modifier = Modifier.height(8.dp))
-        FulfilmentOption(shopViewModel.fulfilmentMethod == "delivery", "Delivery", Icons.Default.LocalShipping) { shopViewModel.fulfilmentMethod = "delivery" }
+        Spacer(Modifier.height(16.dp))
+        Text("Pickup", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = PulseColors.TextPrimary)
+        Spacer(Modifier.height(8.dp))
+        FulfilmentOption(true, "Front Desk Pickup", Icons.Default.Store) { shopViewModel.fulfilmentMethod = "pickup" }
+        Spacer(Modifier.height(8.dp))
+        Text("Please collect your order at the Morning Star Fitness Centre front desk after payment is confirmed.", color = PulseColors.TextMuted, fontSize = 12.sp)
 
-        if (shopViewModel.fulfilmentMethod == "delivery") {
-            Spacer(modifier = Modifier.height(12.dp))
-            FormField(value = shopViewModel.deliveryLocation, onValueChange = { shopViewModel.deliveryLocation = it }, label = "Delivery Location (e.g. Ruiru, Estate Name)")
-            FormField(value = shopViewModel.deliveryAddress, onValueChange = { shopViewModel.deliveryAddress = it }, label = "Address / Landmark / House No.")
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(Modifier.height(20.dp))
         HorizontalDivider(color = PulseColors.SurfaceAlt)
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Total", color = PulseColors.TextPrimary, fontWeight = FontWeight.Bold)
             Text("KSh $cartTotal", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(Modifier.height(24.dp))
         Text("PAYMENT", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseColors.AccentLime)
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(Modifier.height(12.dp))
         Column(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(16.dp)) {
             Text("M-PESA SANDBOX — DEMO", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(4.dp))
             Text("PayBill: 123456", color = PulseColors.TextPrimary, fontSize = 13.sp)
             Text("Account: MORNINGSTAR-DEMO", color = PulseColors.TextPrimary, fontSize = 13.sp)
             Text("Amount: KSh $cartTotal", color = PulseColors.TextPrimary, fontSize = 13.sp)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(Modifier.height(8.dp))
             Text("No real money is transferred in this presentation build.", color = PulseColors.TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
         }
 
         if (paymentViewModel.errorMessage != null) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(Modifier.height(12.dp))
             Text(paymentViewModel.errorMessage!!, color = PulseColors.Error, fontSize = 12.sp)
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(Modifier.height(24.dp))
         PrimaryButton(
             text = if (paymentViewModel.isProcessing || shopViewModel.isProcessingOrder) "Processing..." else "SIMULATE PAYMENT",
             onClick = {
                 shopViewModel.createPendingOrder { success, orderId ->
                     if (success && orderId != null) {
-                        paymentViewModel.simulateSuccessfulPayment(
-                            amount = cartTotal,
-                            purpose = "shop_order",
-                            referenceId = orderId,
-                            onComplete = { paid -> if (paid) onOrderSuccess(orderId) }
-                        )
+                        paymentViewModel.simulateSuccessfulPayment(amount = cartTotal, purpose = "shop_order", referenceId = orderId) { paid ->
+                            if (paid) onOrderSuccess(orderId)
+                        }
                     }
                 }
             },
             enabled = !(paymentViewModel.isProcessing || shopViewModel.isProcessingOrder)
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-        GhostButton(
-            text = "CANCEL PAYMENT",
-            onClick = { paymentViewModel.simulateCancelledPayment { onCancel() } },
-            enabled = !(paymentViewModel.isProcessing || shopViewModel.isProcessingOrder)
-        )
+        Spacer(Modifier.height(8.dp))
+        GhostButton("CANCEL PAYMENT", { paymentViewModel.simulateCancelledPayment { onCancel() } }, !(paymentViewModel.isProcessing || shopViewModel.isProcessingOrder))
     }
 }
 
 @Composable
 fun SummaryField(label: String, value: String) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(label, color = PulseColors.TextMuted, fontSize = 11.sp)
         Text(value, color = PulseColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
@@ -254,36 +193,24 @@ fun SummaryField(label: String, value: String) {
 
 @Composable
 fun FulfilmentOption(selected: Boolean, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-            .background(if (selected) PulseColors.AccentLime.copy(alpha = 0.1f) else PulseColors.SurfaceAlt)
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(PulseColors.AccentLime.copy(alpha = 0.1f)).clickable { onClick() }.padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = PulseColors.AccentLime, unselectedColor = PulseColors.TextMuted))
-        Icon(icon, contentDescription = null, tint = if (selected) PulseColors.AccentLime else PulseColors.TextMuted, modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(label, color = if (selected) PulseColors.TextPrimary else PulseColors.TextMuted, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal)
+        Icon(icon, null, tint = PulseColors.AccentLime, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(label, color = PulseColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
 private fun ProductRow(product: ProductModel, quantity: Int, onQuantityChange: (Int) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         ProductImage(product)
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
             Text(product.name, color = PulseColors.TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp)
             Text(product.category, color = PulseColors.TextMuted, fontSize = 11.sp)
             Text("KSh ${product.priceKsh}", color = PulseColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 13.sp)
         }
-
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (quantity > 0) onQuantityChange(quantity - 1) }) { Text("–", color = PulseColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
             Text(quantity.toString(), color = PulseColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.width(20.dp))
@@ -294,26 +221,5 @@ private fun ProductRow(product: ProductModel, quantity: Int, onQuantityChange: (
 
 @Composable
 private fun ProductImage(product: ProductModel) {
-    SubcomposeAsyncImage(
-        model = product.imageUrl,
-        contentDescription = product.name,
-        contentScale = ContentScale.Crop,
-        modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)).background(PulseColors.Background),
-        loading = { ProductFallback(product.name, "Loading") },
-        error = { ProductFallback(product.name, "Image unavailable") }
-    )
-}
-
-@Composable
-private fun ProductFallback(name: String, message: String) {
-    Box(
-        modifier = Modifier.fillMaxSize().background(PulseColors.Background),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = PulseColors.Accent, modifier = Modifier.size(24.dp))
-            Text(name.take(12), color = PulseColors.TextPrimary, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-            Text(message, color = PulseColors.TextMuted, fontSize = 7.sp)
-        }
-    }
+    SubcomposeAsyncImage(model = product.imageUrl, contentDescription = product.name, contentScale = ContentScale.Crop, modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)).background(PulseColors.Background))
 }
