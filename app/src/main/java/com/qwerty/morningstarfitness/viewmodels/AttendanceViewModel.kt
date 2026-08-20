@@ -23,25 +23,50 @@ class AttendanceViewModel : ViewModel() {
     private var lastCheckInDay: String? = null
     var lastCheckInError by mutableStateOf<String?>(null); private set
 
-    init { fetchAttendanceHistory() }
-
     suspend fun recordCheckIn(): Boolean {
         lastCheckInError = null
-        val uid = auth.currentUser?.uid ?: run { lastCheckInError = "You must be logged in to record a visit."; return false }
-        val member = try { database.reference.child("members").child(uid).get().await() } catch (_: Exception) { lastCheckInError = "Could not verify your membership. Please try again."; return false }
-        val expiry = member.child("membershipExpiry").getValue(String::class.java)
-        if (expiry.isNullOrBlank() || isExpired(expiry)) { lastCheckInError = "Your membership has expired. Please renew before checking in."; return false }
-        val now = Date(); val dayKey = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(now)
-        if (dayKey == lastCheckInDay) return false
-        val dateLabel = SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(now)
-        val timeLabel = SimpleDateFormat("h:mm a", Locale.getDefault()).format(now)
-        val entry = AttendanceEntry(dateLabel, timeLabel, timestamp = now.time)
+        val uid = auth.currentUser?.uid ?: run {
+            lastCheckInError = "You must be logged in to record a visit."
+            return false
+        }
         return try {
-            val ref = database.reference.child("members").child(uid).child("attendance").child(dayKey)
-            if (ref.get().await().exists()) { lastCheckInDay = dayKey; return false }
-            ref.setValue(mapOf("date" to entry.date, "checkIn" to entry.checkIn, "checkOut" to entry.checkOut, "timestamp" to entry.timestamp)).await()
-            attendanceHistory.add(0, entry); lastCheckInDay = dayKey; true
-        } catch (e: Exception) { lastCheckInError = e.message ?: "Could not save the visit. Please try again."; false }
+            val member = database.reference.child("members").child(uid).get().await()
+            val expiry = member.child("membershipExpiry").getValue(String::class.java)
+            if (expiry.isNullOrBlank() || isExpired(expiry)) {
+                lastCheckInError = "Your membership has expired. Please renew before checking in."
+                return false
+            }
+
+            val now = Date()
+            val dayKey = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(now)
+            if (dayKey == lastCheckInDay || member.child("attendance").child(dayKey).exists()) {
+                lastCheckInDay = dayKey
+                return false
+            }
+
+            val entry = AttendanceEntry(
+                date = SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(now),
+                checkIn = SimpleDateFormat("h:mm a", Locale.getDefault()).format(now),
+                timestamp = now.time
+            )
+            database.reference.child("members").child(uid).child("attendance").child(dayKey)
+                .setValue(
+                    mapOf(
+                        "date" to entry.date,
+                        "checkIn" to entry.checkIn,
+                        "checkOut" to entry.checkOut,
+                        "timestamp" to entry.timestamp
+                    )
+                ).await()
+
+            attendanceHistory.removeAll { it.timestamp == entry.timestamp }
+            attendanceHistory.add(0, entry)
+            lastCheckInDay = dayKey
+            true
+        } catch (e: Exception) {
+            lastCheckInError = e.message ?: "Could not save the visit. Please try again."
+            false
+        }
     }
 
     fun fetchAttendanceHistory() {
@@ -51,20 +76,34 @@ class AttendanceViewModel : ViewModel() {
                 val snapshot = database.reference.child("members").child(uid).child("attendance").get().await()
                 val entries = snapshot.children.mapNotNull { child ->
                     val date = child.child("date").getValue(String::class.java) ?: return@mapNotNull null
-                    AttendanceEntry(date, child.child("checkIn").getValue(String::class.java).orEmpty(), child.child("checkOut").getValue(String::class.java), child.child("timestamp").getValue(Long::class.java) ?: 0L)
+                    AttendanceEntry(
+                        date = date,
+                        checkIn = child.child("checkIn").getValue(String::class.java).orEmpty(),
+                        checkOut = child.child("checkOut").getValue(String::class.java),
+                        timestamp = child.child("timestamp").getValue(Long::class.java) ?: 0L
+                    )
                 }.sortedByDescending { it.timestamp }
-                attendanceHistory.clear(); attendanceHistory.addAll(entries)
+                attendanceHistory.clear()
+                attendanceHistory.addAll(entries)
                 val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
                 if (snapshot.child(today).exists()) lastCheckInDay = today
-            } catch (e: Exception) { e.printStackTrace() }
+            } catch (_: Exception) {
+                // Keep the current in-memory history when a refresh temporarily fails.
+            }
         }
     }
 
-    fun clearHistory() { attendanceHistory.clear(); lastCheckInDay = null; lastCheckInError = null }
+    fun clearHistory() {
+        attendanceHistory.clear()
+        lastCheckInDay = null
+        lastCheckInError = null
+    }
 
     private fun isExpired(value: String): Boolean = try {
         val expiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(value) ?: return true
-        val today = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,0); set(Calendar.MINUTE,0); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0) }.time
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.time
         expiry.before(today)
     } catch (_: Exception) { true }
 }
