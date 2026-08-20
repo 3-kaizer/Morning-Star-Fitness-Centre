@@ -53,6 +53,17 @@ class AuthViewModel : ViewModel() {
         }
     }
 
+    suspend fun signInForGymEntry(email: String, password: String): Boolean {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isBlank() || password.isBlank()) return false
+        return try {
+            auth.signInWithEmailAndPassword(cleanEmail, password).await()
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     suspend fun createUser(
         member: MemberFormState,
         plan: MembershipPlanModel,
