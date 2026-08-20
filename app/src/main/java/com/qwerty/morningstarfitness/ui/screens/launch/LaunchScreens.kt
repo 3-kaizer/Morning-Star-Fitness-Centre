@@ -45,12 +45,12 @@ private val OnboardingBackground = Color(0xFF101010)
 private val OnboardingSurface = Color(0xFF181818)
 private val OnboardingAccent = Color(0xFFFF7A18)
 
-// Verified real photographs from Wikimedia Commons. These exact files are real
-// photographs and are released under CC0/public-domain dedication.
+// User-selected Unsplash photography: one image is displayed on each onboarding page.
+// The existing Coil AsyncImage setup keeps the onboarding resilient with local fallbacks.
 private val onboardingPhotos = listOf(
-    "https://commons.wikimedia.org/wiki/Special:FilePath/Gym_workout_machine.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:FilePath/Gym_workout_machines.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:FilePath/Work_out_machines.jpg?width=1200"
+    "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=1200&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1728486145245-d4cb0c9c3470?w=1200&q=80&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1641361777339-0ee075cf3ab4?w=1200&q=80&auto=format&fit=crop"
 )
 
 private val onboardingFallbacks = listOf(
@@ -112,7 +112,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                 ) {
                     AsyncImage(
                         model = onboardingPhotos[index],
-                        contentDescription = "Real gym photograph",
+                        contentDescription = "Morning Star Fitness Centre onboarding gym photograph",
                         contentScale = ContentScale.Crop,
                         placeholder = painterResource(onboardingFallbacks[index]),
                         error = painterResource(onboardingFallbacks[index]),
