@@ -4,7 +4,6 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Button
@@ -31,23 +31,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
+import com.qwerty.morningstarfitness.R
 
 private val OnboardingBackground = Color(0xFF101010)
 private val OnboardingSurface = Color(0xFF181818)
 private val OnboardingAccent = Color(0xFFFF7A18)
 
+// Real CC0/public-domain gym photographs from Wikimedia Commons.
+// They are loaded online, with a bundled illustration used as a guaranteed fallback.
 private val onboardingPhotos = listOf(
     "https://commons.wikimedia.org/wiki/Special:FilePath/Gym_workout_machine.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:FilePath/Gym_photo.jpg?width=1200",
-    "https://commons.wikimedia.org/wiki/Special:FilePath/Gym_workout_machines.jpg?width=1200"
+    "https://commons.wikimedia.org/wiki/Special:FilePath/Gym_workout_machines.jpg?width=1200",
+    "https://commons.wikimedia.org/wiki/Special:FilePath/Strake_interior_Gym_I.jpg?width=1200"
 )
 
 @Composable
@@ -98,6 +101,11 @@ fun OnboardingScreen(onFinished: () -> Unit) {
         "Register once, keep your permanent member QR, and renew when needed.",
         "View attendance, membership status, trainers, and the gym shop from one dashboard."
     )
+    val fallbackArt = listOf(
+        R.drawable.onboarding_strength,
+        R.drawable.onboarding_membership,
+        R.drawable.onboarding_progress
+    )
     val photoCaptions = listOf(
         "YOUR TRAINING STARTS HERE",
         "ONE QR • ONE MEMBERSHIP",
@@ -117,33 +125,15 @@ fun OnboardingScreen(onFinished: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(
-                    "MORNING STAR",
-                    color = OnboardingAccent,
-                    fontSize = 12.sp,
-                    letterSpacing = 1.7.sp
-                )
-                Text(
-                    "FITNESS CENTRE",
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    letterSpacing = 1.2.sp
-                )
+                Text("MORNING STAR", color = OnboardingAccent, fontSize = 12.sp, letterSpacing = 1.7.sp)
+                Text("FITNESS CENTRE", color = Color.White, fontSize = 10.sp, letterSpacing = 1.2.sp)
             }
-            Text(
-                "${page + 1} / ${titles.size}",
-                color = Color.White.copy(alpha = 0.55f),
-                fontSize = 11.sp
-            )
+            Text("${page + 1} / ${titles.size}", color = Color.White.copy(alpha = 0.55f), fontSize = 11.sp)
         }
 
         Spacer(Modifier.height(22.dp))
 
-        Crossfade(
-            targetState = page,
-            animationSpec = tween(280),
-            label = "onboarding"
-        ) { index ->
+        Crossfade(targetState = page, animationSpec = tween(280), label = "onboarding") { index ->
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -162,17 +152,16 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                                 )
                             )
                         )
-                        .border(
-                            1.dp,
-                            OnboardingAccent.copy(alpha = 0.28f),
-                            RoundedCornerShape(26.dp)
-                        )
-                        .padding(12.dp)
+                        .border(1.dp, OnboardingAccent.copy(alpha = 0.28f), RoundedCornerShape(26.dp))
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
                         model = onboardingPhotos[index],
-                        contentDescription = "Morning Star Fitness gym photography",
+                        contentDescription = "Real gym photography",
                         contentScale = ContentScale.Crop,
+                        placeholder = painterResource(fallbackArt[index]),
+                        error = painterResource(fallbackArt[index]),
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(RoundedCornerShape(20.dp))
@@ -183,11 +172,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                             .clip(RoundedCornerShape(20.dp))
                             .background(
                                 Brush.verticalGradient(
-                                    listOf(
-                                        Color.Transparent,
-                                        Color.Transparent,
-                                        Color.Black.copy(alpha = 0.42f)
-                                    )
+                                    listOf(Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.42f))
                                 )
                             )
                     )
@@ -196,9 +181,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                         color = Color.White,
                         fontSize = 11.sp,
                         letterSpacing = 1.3.sp,
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(18.dp)
+                        modifier = Modifier.align(Alignment.BottomStart).padding(18.dp)
                     )
                 }
 
@@ -213,27 +196,19 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                     color = Color.LightGray.copy(alpha = 0.82f),
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                 )
             }
         }
 
         Spacer(Modifier.height(18.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
             repeat(titles.size) { index ->
                 Box(
                     modifier = Modifier
                         .size(if (index == page) 24.dp else 7.dp, 7.dp)
                         .clip(RoundedCornerShape(50))
-                        .background(
-                            if (index == page) OnboardingAccent
-                            else Color.White.copy(alpha = 0.18f)
-                        )
+                        .background(if (index == page) OnboardingAccent else Color.White.copy(alpha = 0.18f))
                 )
             }
         }
@@ -241,19 +216,11 @@ fun OnboardingScreen(onFinished: () -> Unit) {
         Spacer(Modifier.height(20.dp))
         Button(
             onClick = { if (page == titles.lastIndex) onFinished() else page++ },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp),
+            modifier = Modifier.fillMaxWidth().height(54.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = OnboardingAccent,
-                contentColor = OnboardingBackground
-            )
+            colors = ButtonDefaults.buttonColors(containerColor = OnboardingAccent, contentColor = OnboardingBackground)
         ) {
-            Text(
-                if (page == titles.lastIndex) "GET STARTED" else "NEXT",
-                letterSpacing = 0.7.sp
-            )
+            Text(if (page == titles.lastIndex) "GET STARTED" else "NEXT", letterSpacing = 0.7.sp)
             if (page < titles.lastIndex) {
                 Spacer(Modifier.size(8.dp))
                 Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -263,10 +230,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
         if (page < titles.lastIndex) {
             Button(
                 onClick = onFinished,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = Color.White.copy(alpha = 0.72f)
-                ),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.White.copy(alpha = 0.72f)),
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
             ) {
                 Text("SKIP", fontSize = 12.sp, letterSpacing = 0.8.sp)
