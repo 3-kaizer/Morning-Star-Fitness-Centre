@@ -42,10 +42,10 @@ private data class Trainer(
 )
 
 private val todayTrainers = listOf(
-    Trainer("Daniel Mwangi", "Strength & Conditioning", "6:00 AM – 12:00 PM", "Available"),
-    Trainer("Faith Wanjiku", "Weight Loss & Mobility", "9:00 AM – 4:00 PM", "Available"),
-    Trainer("Brian Otieno", "Functional Training", "2:00 PM – 8:00 PM", "Available"),
-    Trainer("Mercy Akinyi", "Group Fitness", "4:00 PM – 8:00 PM", "Available")
+    Trainer("Alex Mwangi", "Strength & Conditioning", "6:00 AM – 2:00 PM", "Available"),
+    Trainer("Brian Kamau", "Weight Loss & HIIT", "10:00 AM – 6:00 PM", "Available"),
+    Trainer("Sarah Wanjiku", "Personal Training", "2:00 PM – 9:00 PM", "Available"),
+    Trainer("Kevin Otieno", "Functional Fitness", "4:00 PM – 10:00 PM", "Available")
 )
 
 @Composable
@@ -67,7 +67,7 @@ fun TrainersScreen(onBack: () -> Unit) {
         }
 
         Text(
-            "See which coaches are in the gym today and when they are available.",
+            "Meet the coaches working on the gym floor today.",
             color = PulseColors.TextMuted,
             fontSize = 13.sp,
             modifier = Modifier.padding(start = 54.dp, top = 2.dp)
@@ -88,9 +88,9 @@ fun TrainersScreen(onBack: () -> Unit) {
             }
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text("${todayTrainers.size} trainers on duty", color = PulseColors.TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Text("Available for help on the gym floor today.", color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
+                Text("Ask a coach for help with your workout.", color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
             }
-            Text("TODAY", color = PulseColors.Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+            Text("ON DUTY", color = PulseColors.Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
         }
 
         Spacer(Modifier.height(14.dp))
