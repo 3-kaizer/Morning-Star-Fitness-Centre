@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -51,7 +50,6 @@ fun ProfileScreen(
     onSave: (MemberFormState) -> Unit
 ) {
     var draft by remember(memberForm) { mutableStateOf(memberForm ?: MemberFormState()) }
-    var saved by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize().background(PulseColors.Background).padding(horizontal = 18.dp, vertical = 16.dp), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.fillMaxWidth().widthIn(max = 460.dp).verticalScroll(rememberScrollState())) {
@@ -66,7 +64,6 @@ fun ProfileScreen(
             }
 
             Spacer(Modifier.height(12.dp))
-
             Row(
                 Modifier.fillMaxWidth().background(PulseColors.Surface, RoundedCornerShape(18.dp)).border(1.dp, PulseColors.Border, RoundedCornerShape(18.dp)).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -96,8 +93,8 @@ fun ProfileScreen(
 
             SectionLabel("Personal information")
             Text("Changes are saved to your Firebase member profile.", color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 5.dp))
-            FormField(label = "Full name", value = draft.fullName, onValueChange = { draft = draft.copy(fullName = it); saved = false })
-            FormField(label = "Phone number", value = draft.phone, onValueChange = { draft = draft.copy(phone = it); saved = false }, keyboardType = KeyboardType.Phone)
+            FormField(label = "Full name", value = draft.fullName, onValueChange = { draft = draft.copy(fullName = it) })
+            FormField(label = "Phone number", value = draft.phone, onValueChange = { draft = draft.copy(phone = it) }, keyboardType = KeyboardType.Phone)
 
             Text("Login email", color = PulseColors.TextMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 10.dp, bottom = 5.dp))
             Text(
@@ -107,26 +104,14 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).border(1.dp, PulseColors.Border, RoundedCornerShape(12.dp)).padding(14.dp)
             )
 
-            FormField(label = "Emergency contact", value = draft.emergencyContact, onValueChange = { draft = draft.copy(emergencyContact = it); saved = false }, keyboardType = KeyboardType.Phone)
-
+            FormField(label = "Emergency contact", value = draft.emergencyContact, onValueChange = { draft = draft.copy(emergencyContact = it) }, keyboardType = KeyboardType.Phone)
             Spacer(Modifier.height(16.dp))
-            if (saved) {
-                Row(Modifier.fillMaxWidth().background(PulseColors.AccentLime.copy(alpha = .12f), RoundedCornerShape(12.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, null, tint = PulseColors.AccentLime, modifier = Modifier.size(18.dp))
-                    Text("Your profile was saved and refreshed from Firebase.", color = PulseColors.TextPrimary, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp))
-                }
-                Spacer(Modifier.height(10.dp))
-            }
-
             PrimaryButton(
-                text = if (saved) "SAVED" else "SAVE PROFILE",
-                onClick = {
-                    saved = false
-                    onSave(draft)
-                    saved = true
-                },
+                text = "SAVE PROFILE",
+                onClick = { onSave(draft) },
                 modifier = Modifier.fillMaxWidth()
             )
+            Text("After saving, the app refreshes the member record from Firebase.", color = PulseColors.TextMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
             Spacer(Modifier.height(12.dp))
         }
     }
