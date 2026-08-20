@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.HorizontalDivider
@@ -35,12 +36,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
+import coil3.compose.SubcomposeAsyncImage
 import com.qwerty.morningstarfitness.models.ProductModel
 import com.qwerty.morningstarfitness.ui.components.BrandMark
 import com.qwerty.morningstarfitness.ui.components.FormField
@@ -92,7 +94,6 @@ fun ShopScreen(
 
             BrandMark()
             Heading(if (showingCheckout) "Checkout" else "Gym shop")
-
             Spacer(modifier = Modifier.height(4.dp))
 
             if (!showingCheckout) {
@@ -101,7 +102,6 @@ fun ShopScreen(
                     color = PulseColors.TextMuted,
                     fontSize = 14.sp
                 )
-
                 Spacer(modifier = Modifier.height(20.dp))
 
                 shopViewModel.products.forEach { product ->
@@ -116,7 +116,6 @@ fun ShopScreen(
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
-
                 CartSummary(itemCount, cartTotal)
 
                 if (shopViewModel.orderError != null) {
@@ -125,17 +124,15 @@ fun ShopScreen(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-
                 PrimaryButton(
                     text = "Proceed to Checkout",
-                    onClick = { 
+                    onClick = {
                         shopViewModel.initiateCheckout()
-                        showingCheckout = true 
+                        showingCheckout = true
                     },
                     enabled = itemCount > 0 && !isProcessing
                 )
             } else {
-                // Checkout Flow
                 CheckoutContent(
                     shopViewModel = shopViewModel,
                     memberForm = memberForm,
@@ -145,9 +142,7 @@ fun ShopScreen(
                         shopViewModel.finalizeOrder()
                         onOrderSuccess(orderId)
                     },
-                    onCancel = {
-                        showingCheckout = false
-                    }
+                    onCancel = { showingCheckout = false }
                 )
             }
         }
@@ -163,17 +158,8 @@ fun CartSummary(itemCount: Int, cartTotal: Int) {
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = if (itemCount == 0) "Cart is empty" else "$itemCount item(s)",
-            color = PulseColors.TextPrimary,
-            fontSize = 14.sp
-        )
-        Text(
-            text = "KSh $cartTotal",
-            color = PulseColors.Accent,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 14.sp
-        )
+        Text(if (itemCount == 0) "Cart is empty" else "$itemCount item(s)", color = PulseColors.TextPrimary, fontSize = 14.sp)
+        Text("KSh $cartTotal", color = PulseColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 14.sp)
     }
 }
 
@@ -187,84 +173,51 @@ fun CheckoutContent(
     onCancel: () -> Unit
 ) {
     Column {
-        Text(text = "ORDER SUMMARY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseColors.AccentLime)
+        Text("ORDER SUMMARY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseColors.AccentLime)
         Spacer(modifier = Modifier.height(12.dp))
-
         SummaryField("Customer", memberForm?.fullName ?: "Unknown")
         SummaryField("Phone", memberForm?.phone ?: "Unknown")
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "Fulfilment", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = PulseColors.TextPrimary)
-        Spacer(modifier = Modifier.height(8.dp))
 
-        FulfilmentOption(
-            selected = shopViewModel.fulfilmentMethod == "pickup",
-            label = "Front Desk Pickup",
-            icon = Icons.Default.Store,
-            onClick = { shopViewModel.fulfilmentMethod = "pickup" }
-        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Fulfilment", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = PulseColors.TextPrimary)
         Spacer(modifier = Modifier.height(8.dp))
-        FulfilmentOption(
-            selected = shopViewModel.fulfilmentMethod == "delivery",
-            label = "Delivery",
-            icon = Icons.Default.LocalShipping,
-            onClick = { shopViewModel.fulfilmentMethod = "delivery" }
-        )
+        FulfilmentOption(shopViewModel.fulfilmentMethod == "pickup", "Front Desk Pickup", Icons.Default.Store) { shopViewModel.fulfilmentMethod = "pickup" }
+        Spacer(modifier = Modifier.height(8.dp))
+        FulfilmentOption(shopViewModel.fulfilmentMethod == "delivery", "Delivery", Icons.Default.LocalShipping) { shopViewModel.fulfilmentMethod = "delivery" }
 
         if (shopViewModel.fulfilmentMethod == "delivery") {
             Spacer(modifier = Modifier.height(12.dp))
-            FormField(
-                value = shopViewModel.deliveryLocation,
-                onValueChange = { shopViewModel.deliveryLocation = it },
-                label = "Delivery Location (e.g. Ruiru, Estate Name)"
-            )
-            FormField(
-                value = shopViewModel.deliveryAddress,
-                onValueChange = { shopViewModel.deliveryAddress = it },
-                label = "Address / Landmark / House No."
-            )
+            FormField(value = shopViewModel.deliveryLocation, onValueChange = { shopViewModel.deliveryLocation = it }, label = "Delivery Location (e.g. Ruiru, Estate Name)")
+            FormField(value = shopViewModel.deliveryAddress, onValueChange = { shopViewModel.deliveryAddress = it }, label = "Address / Landmark / House No.")
         }
 
         Spacer(modifier = Modifier.height(20.dp))
         HorizontalDivider(color = PulseColors.SurfaceAlt)
         Spacer(modifier = Modifier.height(12.dp))
-        
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = "Total", color = PulseColors.TextPrimary, fontWeight = FontWeight.Bold)
-            Text(text = "KSh $cartTotal", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            Text("Total", color = PulseColors.TextPrimary, fontWeight = FontWeight.Bold)
+            Text("KSh $cartTotal", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-        Text(text = "PAYMENT", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseColors.AccentLime)
+        Text("PAYMENT", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseColors.AccentLime)
         Spacer(modifier = Modifier.height(12.dp))
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp))
-                .padding(16.dp)
-        ) {
-            Text(text = "M-PESA SANDBOX — DEMO", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Column(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(16.dp)) {
+            Text("M-PESA SANDBOX — DEMO", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = "PayBill: 123456", color = PulseColors.TextPrimary, fontSize = 13.sp)
-            Text(text = "Account: MORNINGSTAR-DEMO", color = PulseColors.TextPrimary, fontSize = 13.sp)
-            Text(text = "Amount: KSh $cartTotal", color = PulseColors.TextPrimary, fontSize = 13.sp)
+            Text("PayBill: 123456", color = PulseColors.TextPrimary, fontSize = 13.sp)
+            Text("Account: MORNINGSTAR-DEMO", color = PulseColors.TextPrimary, fontSize = 13.sp)
+            Text("Amount: KSh $cartTotal", color = PulseColors.TextPrimary, fontSize = 13.sp)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "No real money is transferred in this presentation build.",
-                color = PulseColors.TextMuted,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace
-            )
+            Text("No real money is transferred in this presentation build.", color = PulseColors.TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
         }
 
         if (paymentViewModel.errorMessage != null) {
             Spacer(modifier = Modifier.height(12.dp))
-            Text(text = paymentViewModel.errorMessage!!, color = PulseColors.Error, fontSize = 12.sp)
+            Text(paymentViewModel.errorMessage!!, color = PulseColors.Error, fontSize = 12.sp)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-
         PrimaryButton(
             text = if (paymentViewModel.isProcessing || shopViewModel.isProcessingOrder) "Processing..." else "SIMULATE PAYMENT",
             onClick = {
@@ -274,25 +227,18 @@ fun CheckoutContent(
                             amount = cartTotal,
                             purpose = "shop_order",
                             referenceId = orderId,
-                            onComplete = { paid ->
-                                if (paid) onOrderSuccess(orderId)
-                            }
+                            onComplete = { paid -> if (paid) onOrderSuccess(orderId) }
                         )
                     }
                 }
             },
             enabled = !(paymentViewModel.isProcessing || shopViewModel.isProcessingOrder)
         )
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
         GhostButton(
             text = "CANCEL PAYMENT",
-            onClick = {
-                paymentViewModel.simulateCancelledPayment { 
-                    onCancel()
-                }
-            },
+            onClick = { paymentViewModel.simulateCancelledPayment { onCancel() } },
             enabled = !(paymentViewModel.isProcessing || shopViewModel.isProcessingOrder)
         )
     }
@@ -301,78 +247,73 @@ fun CheckoutContent(
 @Composable
 fun SummaryField(label: String, value: String) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(text = label, color = PulseColors.TextMuted, fontSize = 11.sp)
-        Text(text = value, color = PulseColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(label, color = PulseColors.TextMuted, fontSize = 11.sp)
+        Text(value, color = PulseColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
 fun FulfilmentOption(selected: Boolean, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
             .background(if (selected) PulseColors.AccentLime.copy(alpha = 0.1f) else PulseColors.SurfaceAlt)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        RadioButton(
-            selected = selected,
-            onClick = onClick,
-            colors = RadioButtonDefaults.colors(selectedColor = PulseColors.AccentLime, unselectedColor = PulseColors.TextMuted)
-        )
+        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = PulseColors.AccentLime, unselectedColor = PulseColors.TextMuted))
         Icon(icon, contentDescription = null, tint = if (selected) PulseColors.AccentLime else PulseColors.TextMuted, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
-        Text(text = label, color = if (selected) PulseColors.TextPrimary else PulseColors.TextMuted, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal)
+        Text(label, color = if (selected) PulseColors.TextPrimary else PulseColors.TextMuted, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal)
     }
 }
 
 @Composable
-private fun ProductRow(
-    product: ProductModel,
-    quantity: Int,
-    onQuantityChange: (Int) -> Unit
-) {
+private fun ProductRow(product: ProductModel, quantity: Int, onQuantityChange: (Int) -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = product.imageUrl,
-            contentDescription = product.name,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(PulseColors.Background)
-        )
-
+        ProductImage(product)
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = product.name, color = PulseColors.TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-            Text(text = product.category, color = PulseColors.TextMuted, fontSize = 11.sp)
-            Text(text = "KSh ${product.priceKsh}", color = PulseColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+            Text(product.name, color = PulseColors.TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(product.category, color = PulseColors.TextMuted, fontSize = 11.sp)
+            Text("KSh ${product.priceKsh}", color = PulseColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 13.sp)
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { if (quantity > 0) onQuantityChange(quantity - 1) }) {
-                Text(text = "–", color = PulseColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
-            Text(
-                text = quantity.toString(),
-                color = PulseColors.TextPrimary,
-                fontSize = 14.sp,
-                modifier = Modifier.width(20.dp),
-            )
-            IconButton(onClick = { onQuantityChange(quantity + 1) }) {
-                Text(text = "+", color = PulseColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
+            IconButton(onClick = { if (quantity > 0) onQuantityChange(quantity - 1) }) { Text("–", color = PulseColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+            Text(quantity.toString(), color = PulseColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.width(20.dp))
+            IconButton(onClick = { onQuantityChange(quantity + 1) }) { Text("+", color = PulseColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        }
+    }
+}
+
+@Composable
+private fun ProductImage(product: ProductModel) {
+    SubcomposeAsyncImage(
+        model = product.imageUrl,
+        contentDescription = product.name,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)).background(PulseColors.Background),
+        loading = { ProductFallback(product.name, "Loading") },
+        error = { ProductFallback(product.name, "Image unavailable") }
+    )
+}
+
+@Composable
+private fun ProductFallback(name: String, message: String) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(PulseColors.Background),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = PulseColors.Accent, modifier = Modifier.size(24.dp))
+            Text(name.take(12), color = PulseColors.TextPrimary, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+            Text(message, color = PulseColors.TextMuted, fontSize = 7.sp)
         }
     }
 }
