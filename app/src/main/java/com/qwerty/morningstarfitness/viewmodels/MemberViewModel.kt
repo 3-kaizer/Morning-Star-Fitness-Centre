@@ -51,20 +51,70 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         val uid = auth.currentUser?.uid ?: return false
         return try {
             val snapshot = database.reference.child("members").child(uid).get().await()
-            if (!snapshot.exists()) { isLoaded = true; return false }
-            applySnapshot(snapshot); persist(); isLoaded = true; true
-        } catch (e: Exception) { profileSaveError = e.message ?: "Could not refresh member details."; isLoaded = true; false }
+            if (!snapshot.exists()) {
+                isLoaded = true
+                return false
+            }
+            applySnapshot(snapshot)
+            persist()
+            isLoaded = true
+            true
+        } catch (e: Exception) {
+            profileSaveError = e.message ?: "Could not refresh member details."
+            isLoaded = true
+            false
+        }
     }
 
     suspend fun loadLocalMember(): Boolean {
         return try {
-            val p = store.read(); fun get(k: String) = p.entries.firstOrNull { it.key.name == k }?.value.orEmpty(); val name = get("full_name")
-            if (name.isBlank()) { isLoaded = true; return false }
-            memberForm = MemberFormState(name, get("phone"), get("email"), get("dob"), get("gender"), get("emergency_contact"), get("security_question"), get("security_answer"))
+            val preferences = store.read()
+
+            fun get(key: String): String =
+                preferences.entries.firstOrNull { it.key.name == key }?.value.orEmpty()
+
+            val name = get("full_name")
+            if (name.isBlank()) {
+                isLoaded = true
+                return false
+            }
+
+            memberForm = MemberFormState(
+                name,
+                get("phone"),
+                get("email"),
+                get("dob"),
+                get("gender"),
+                get("emergency_contact"),
+                get("security_question"),
+                get("security_answer")
+            )
+
             val label = get("selected_plan_label")
-            selectedPlan = if (label.isBlank()) null else MembershipPlanModel(get("selected_plan_id"), label, get("selected_plan_price").toIntOrNull() ?: 0, get("selected_plan_duration").toIntOrNull() ?: 0)
-            paymentMethod = get("payment_method").ifBlank { "mpesa" }; paymentStatus = get("payment_status").ifBlank { "pending" }; qrCodeValue = get("qr_code").ifBlank { null }; memberId = get("member_id").ifBlank { null }; membershipStart = get("membership_start").ifBlank { null }; membershipExpiry = get("membership_expiry").ifBlank { null }; isLoaded = true; true
-        } catch (e: Exception) { profileSaveError = e.message ?: "Could not load saved member details."; isLoaded = true; false }
+            selectedPlan = if (label.isBlank()) {
+                null
+            } else {
+                MembershipPlanModel(
+                    get("selected_plan_id"),
+                    label,
+                    get("selected_plan_price").toIntOrNull() ?: 0,
+                    get("selected_plan_duration").toIntOrNull() ?: 0
+                )
+            }
+
+            paymentMethod = get("payment_method").ifBlank { "mpesa" }
+            paymentStatus = get("payment_status").ifBlank { "pending" }
+            qrCodeValue = get("qr_code").ifBlank { null }
+            memberId = get("member_id").ifBlank { null }
+            membershipStart = get("membership_start").ifBlank { null }
+            membershipExpiry = get("membership_expiry").ifBlank { null }
+            isLoaded = true
+            true
+        } catch (e: Exception) {
+            profileSaveError = e.message ?: "Could not load saved member details."
+            isLoaded = true
+            false
+        }
     }
 
     fun syncWithFirebase() { viewModelScope.launch { refreshFromFirebase() } }
