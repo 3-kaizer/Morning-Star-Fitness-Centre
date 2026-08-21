@@ -10,6 +10,7 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use(localProperties::load)
 }
 val mpesaServerUrl = localProperties.getProperty("mpesa.server.url", "http://10.0.2.2:3000/api/")
+val mpesaDemoMode = localProperties.getProperty("mpesa.demo.mode", "false").toBoolean()
 
 android {
     namespace = "com.qwerty.morningstarfitness"
@@ -24,6 +25,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "MPESA_SERVER_URL", "\"${mpesaServerUrl.trimEnd('/')}/\"")
+        buildConfigField("Boolean", "MPESA_DEMO_MODE", mpesaDemoMode.toString())
     }
 
     buildTypes {
@@ -31,12 +33,15 @@ android {
             optimization {
                 enable = false
             }
+            buildConfigField("Boolean", "MPESA_DEMO_MODE", "false")
         }
     }
+
     buildFeatures {
         compose = true
         buildConfig = true
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
