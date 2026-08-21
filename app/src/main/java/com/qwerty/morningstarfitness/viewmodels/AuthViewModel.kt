@@ -15,7 +15,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import java.util.UUID
 
 class AuthViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
@@ -28,17 +27,10 @@ class AuthViewModel : ViewModel() {
 
     fun signIn(email: String, password: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         val cleanEmail = email.trim()
-        if (cleanEmail.isBlank() || password.isBlank()) {
-            onError("Enter your email and password.")
-            return
-        }
+        if (cleanEmail.isBlank() || password.isBlank()) { onError("Enter your email and password."); return }
         viewModelScope.launch {
-            try {
-                auth.signInWithEmailAndPassword(cleanEmail, password).await()
-                onSuccess()
-            } catch (e: Exception) {
-                onError(friendlyAuthError(e))
-            }
+            try { auth.signInWithEmailAndPassword(cleanEmail, password).await(); onSuccess() }
+            catch (e: Exception) { onError(friendlyAuthError(e)) }
         }
     }
 
@@ -46,29 +38,13 @@ class AuthViewModel : ViewModel() {
         val user = auth.currentUser ?: return false
         val email = user.email ?: return false
         if (password.isBlank()) return false
-        return try {
-            val credential = EmailAuthProvider.getCredential(email, password)
-            user.reauthenticate(credential).await()
-            true
-        } catch (_: Exception) {
-            false
-        }
+        return try { user.reauthenticate(EmailAuthProvider.getCredential(email, password)).await(); true } catch (_: Exception) { false }
     }
 
-    /**
-     * Password fallback for gym entry when QR cannot be used.
-     * The email comes from the saved member record; the password is verified by Firebase Auth.
-     * The password is never stored in Realtime Database.
-     */
     suspend fun signInForGymEntry(email: String, password: String): Boolean {
         val cleanEmail = email.trim()
         if (cleanEmail.isBlank() || password.isBlank()) return false
-        return try {
-            auth.signInWithEmailAndPassword(cleanEmail, password).await()
-            true
-        } catch (_: Exception) {
-            false
-        }
+        return try { auth.signInWithEmailAndPassword(cleanEmail, password).await(); true } catch (_: Exception) { false }
     }
 
     suspend fun createUser(
@@ -77,7 +53,9 @@ class AuthViewModel : ViewModel() {
         qrCodeValue: String?,
         memberId: String? = null,
         membershipStart: String? = null,
-        membershipExpiry: String? = null
+        membershipExpiry: String? = null,
+        paymentReference: String? = null,
+        mpesaReceipt: String? = null
     ): Boolean {
         registrationError = null
         isProcessing = true
@@ -86,11 +64,12 @@ class AuthViewModel : ViewModel() {
             require(member.email.isNotBlank()) { "Email is required." }
             require(member.password.length >= 6) { "Password must be at least 6 characters." }
             require(member.fullName.isNotBlank()) { "Full name is required." }
+            require(paymentReference?.isNotBlank() == true) { "Verified payment reference is required." }
 
             val authResult = auth.createUserWithEmailAndPassword(member.email.trim(), member.password).await()
             createdUser = authResult.user ?: throw Exception("Failed to create user account")
             val uid = createdUser.uid
-            val paymentId = "PAY-${UUID.randomUUID().toString().take(10).uppercase()}"
+            val paymentId = mpesaReceipt?.ifBlank { null } ?: paymentReference
             val now = System.currentTimeMillis()
 
             val memberData = mapOf(
@@ -110,6 +89,7 @@ class AuthViewModel : ViewModel() {
                 "membershipStart" to membershipStart,
                 "membershipExpiry" to membershipExpiry,
                 "paymentStatus" to "paid",
+                "paymentMethod" to "mpesa_daraja_sandbox",
                 "lastPaymentId" to paymentId,
                 "lastPaymentAt" to now,
                 "securityQuestion" to member.securityQuestion.trim(),
@@ -118,16 +98,19 @@ class AuthViewModel : ViewModel() {
             )
 
             database.reference.child("members").child(uid).setValue(memberData).await()
-            database.reference.child("members").child(uid).child("payments").child(paymentId).setValue(
+            database.reference.child("members").child(uid).child("payments").child(paymentId!!).setValue(
                 mapOf(
                     "paymentId" to paymentId,
+                    "paymentReference" to paymentReference,
+                    "mpesaReceipt" to mpesaReceipt,
                     "type" to "membership_registration",
                     "planId" to plan.id,
                     "planLabel" to plan.label,
                     "amountKsh" to plan.priceKsh,
                     "status" to "paid",
-                    "method" to "manual",
+                    "method" to "mpesa_daraja_sandbox",
                     "paidAt" to now,
+                    "environment" to "sandbox",
                     "membershipStart" to membershipStart,
                     "membershipExpiry" to membershipExpiry
                 )
@@ -137,26 +120,17 @@ class AuthViewModel : ViewModel() {
             try { createdUser?.delete()?.await() } catch (_: Exception) { }
             registrationError = e.message ?: "Registration failed. Please try again."
             false
-        } finally {
-            isProcessing = false
-        }
+        } finally { isProcessing = false }
     }
 
     fun signOut() = auth.signOut()
 
     fun sendPasswordReset(email: String, onResult: (Boolean, String) -> Unit) {
         val cleanEmail = email.trim()
-        if (cleanEmail.isBlank()) {
-            onResult(false, "Enter your account email first.")
-            return
-        }
+        if (cleanEmail.isBlank()) { onResult(false, "Enter your account email first."); return }
         viewModelScope.launch {
-            try {
-                auth.sendPasswordResetEmail(cleanEmail).await()
-                onResult(true, "Password reset instructions sent to $cleanEmail.")
-            } catch (e: Exception) {
-                onResult(false, e.message ?: "Could not send reset email.")
-            }
+            try { auth.sendPasswordResetEmail(cleanEmail).await(); onResult(true, "Password reset instructions sent to $cleanEmail.") }
+            catch (e: Exception) { onResult(false, e.message ?: "Could not send reset email.") }
         }
     }
 
