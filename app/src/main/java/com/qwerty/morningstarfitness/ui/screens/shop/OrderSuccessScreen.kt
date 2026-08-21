@@ -54,49 +54,21 @@ fun OrderSuccessScreen(
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(PulseColors.Background)
-            .padding(20.dp),
+        modifier = Modifier.fillMaxSize().background(PulseColors.Background).padding(20.dp),
         contentAlignment = Alignment.TopCenter
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 420.dp)
-                .background(PulseColors.Surface, RoundedCornerShape(20.dp))
-                .padding(24.dp),
+            modifier = Modifier.fillMaxWidth().widthIn(max = 420.dp).background(PulseColors.Surface, RoundedCornerShape(20.dp)).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             BrandMark()
-
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .background(PulseColors.AccentLime.copy(alpha = 0.12f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = PulseColors.AccentLime,
-                    modifier = Modifier.size(32.dp)
-                )
+            Box(modifier = Modifier.size(64.dp).background(PulseColors.AccentLime.copy(alpha = 0.12f), CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = PulseColors.AccentLime, modifier = Modifier.size(32.dp))
             }
-
             Spacer(modifier = Modifier.height(16.dp))
-
             Heading("ORDER PLACED")
-
             Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "Order #$orderId",
-                color = PulseColors.TextMuted,
-                fontSize = 14.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = "Order #$orderId", color = PulseColors.TextMuted, fontSize = 14.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
 
             if (isLoading) {
                 Spacer(modifier = Modifier.height(40.dp))
@@ -104,39 +76,20 @@ fun OrderSuccessScreen(
             } else if (order != null) {
                 val o = order!!
                 Spacer(modifier = Modifier.height(24.dp))
-
                 Column(modifier = Modifier.fillMaxWidth()) {
                     SuccessSummaryField("Customer", o.customerName)
+                    SuccessSummaryField("Member ID", o.memberId)
                     SuccessSummaryField("Total", "KSh ${o.totalAmount}")
                     SuccessSummaryField("Payment", "M-Pesa Demo — ${o.paymentStatus.uppercase()}")
-                    
-                    val fulfilmentLabel = if (o.fulfilmentMethod == "delivery") "Delivery" else "Pickup"
-                    SuccessSummaryField("Fulfilment", fulfilmentLabel)
-
-                    if (o.fulfilmentMethod == "delivery") {
-                        SuccessSummaryField("Location", o.deliveryLocation)
-                        SuccessSummaryField("Address", o.deliveryAddress)
-                    } else {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Collect your order from the front desk when it is ready.",
-                            color = PulseColors.AccentLime,
-                            fontSize = 13.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth(),
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                    SuccessSummaryField("Status", o.status.replace('_', ' ').uppercase())
+                    SuccessSummaryField("Pickup", "Morning Star Fitness Centre Front Desk")
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(text = "Collect your order from the front desk when it is ready.", color = PulseColors.AccentLime, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Medium)
                 }
-
                 Spacer(modifier = Modifier.height(32.dp))
                 HorizontalDivider(color = PulseColors.SurfaceAlt)
                 Spacer(modifier = Modifier.height(24.dp))
-
-                PrimaryButton(
-                    text = "Continue Shopping",
-                    onClick = onContinue
-                )
+                PrimaryButton(text = "Continue Shopping", onClick = onContinue)
             } else {
                 Spacer(modifier = Modifier.height(40.dp))
                 Text(text = "Order details not found.", color = PulseColors.Error, fontSize = 14.sp)
@@ -149,10 +102,7 @@ fun OrderSuccessScreen(
 
 @Composable
 fun SuccessSummaryField(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(text = label, color = PulseColors.TextMuted, fontSize = 13.sp)
         Text(text = value, color = PulseColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
     }
