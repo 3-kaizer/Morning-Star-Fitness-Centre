@@ -12,6 +12,7 @@ private val Context.memberDataStore by preferencesDataStore(name = "morning_star
 
 class MemberDataStore(private val context: Context) {
     private object Keys {
+        val authUid = stringPreferencesKey("auth_uid")
         val fullName = stringPreferencesKey("full_name")
         val phone = stringPreferencesKey("phone")
         val email = stringPreferencesKey("email")
@@ -33,6 +34,7 @@ class MemberDataStore(private val context: Context) {
     }
 
     suspend fun saveMember(
+        authUid: String?,
         fullName: String,
         phone: String,
         email: String,
@@ -53,6 +55,7 @@ class MemberDataStore(private val context: Context) {
         membershipExpiry: String? = null
     ) {
         context.memberDataStore.edit { p ->
+            putIfNotNull(p, Keys.authUid, authUid)
             putIfNotNull(p, Keys.fullName, fullName)
             putIfNotNull(p, Keys.phone, phone)
             putIfNotNull(p, Keys.email, email)
@@ -77,6 +80,7 @@ class MemberDataStore(private val context: Context) {
     suspend fun read(): Map<Preferences.Key<String>, String> {
         val p = context.memberDataStore.data.first()
         return buildMap {
+            p[Keys.authUid]?.let { put(Keys.authUid, it) }
             p[Keys.fullName]?.let { put(Keys.fullName, it) }
             p[Keys.phone]?.let { put(Keys.phone, it) }
             p[Keys.email]?.let { put(Keys.email, it) }
@@ -98,9 +102,7 @@ class MemberDataStore(private val context: Context) {
         }
     }
 
-    suspend fun clear() {
-        context.memberDataStore.edit { it.clear() }
-    }
+    suspend fun clear() { context.memberDataStore.edit { it.clear() } }
 
     suspend fun saveMembershipMetadata(memberId: String, start: String, expiry: String) {
         context.memberDataStore.edit {
@@ -111,10 +113,6 @@ class MemberDataStore(private val context: Context) {
     }
 }
 
-private fun putIfNotNull(
-    preferences: MutablePreferences,
-    key: Preferences.Key<String>,
-    value: String?
-) {
+private fun putIfNotNull(preferences: MutablePreferences, key: Preferences.Key<String>, value: String?) {
     if (value == null) preferences.remove(key) else preferences[key] = value
 }
