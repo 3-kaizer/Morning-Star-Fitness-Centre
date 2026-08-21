@@ -7,23 +7,26 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.qwerty.morningstarfitness.BuildConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import java.util.UUID
 
-/**
- * Presentation-only payment simulator.
- *
- * This deliberately replaces the Daraja STK flow for the school/demo build.
- * It never contacts Safaricom and never moves real money.
- */
 class MpesaPaymentViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
     private val database = FirebaseDatabase.getInstance("https://morning-star-6c5e6-default-rtdb.firebaseio.com")
+    private val http = OkHttpClient.Builder().callTimeout(java.time.Duration.ofSeconds(25)).build()
+    private val gson = Gson()
 
     var isProcessing by mutableStateOf(false)
         private set
@@ -31,14 +34,22 @@ class MpesaPaymentViewModel : ViewModel() {
         private set
     var paymentStatus by mutableStateOf<String?>(null)
         private set
+    var mpesaReceipt by mutableStateOf<String?>(null)
+        private set
 
     fun reset() {
         isProcessing = false
         errorMessage = null
         paymentStatus = null
+        mpesaReceipt = null
     }
 
-    fun startPayment(
+    /**
+     * Starts a real Daraja Sandbox STK Push through the local Node/Express backend.
+     * The Android app never contains the Daraja consumer secret/passkey.
+     * Success is accepted only after the backend receives Safaricom's callback.
+     */
+    fun startStkPayment(
         phone: String,
         amount: Int,
         purpose: String,
@@ -54,139 +65,128 @@ class MpesaPaymentViewModel : ViewModel() {
             onComplete(false)
             return
         }
-
-        errorMessage = null
-        paymentStatus = "pending"
-        isProcessing = true
-
-        viewModelScope.launch {
-            try {
-                // Keep the small delay so the presentation visibly demonstrates a payment step.
-                delay(900)
-                // The actual success/cancel action is exposed separately by the screen.
-                onComplete(false)
-            } finally {
-                isProcessing = false
-            }
-        }
-    }
-
-    /** Complete a demo payment only after the presenter explicitly chooses success. */
-    fun simulateSuccessfulPayment(
-        amount: Int,
-        purpose: String,
-        referenceId: String,
-        planId: String? = null,
-        planLabel: String? = null,
-        planDuration: Int? = null,
-        onComplete: (Boolean) -> Unit
-    ) {
-        if (isProcessing) return
-        val uid = auth.currentUser?.uid
-        
-        // During registration, the user doesn't exist yet.
-        if (uid == null && purpose != "membership_registration") {
-            errorMessage = "Please sign in before completing the demo payment."
+        if (phone.isBlank()) {
+            errorMessage = "A valid M-Pesa phone number is required."
             onComplete(false)
             return
         }
 
-        isProcessing = true
         errorMessage = null
-        paymentStatus = "pending"
+        paymentStatus = "starting"
+        mpesaReceipt = null
+        isProcessing = true
 
         viewModelScope.launch {
             try {
-                delay(650)
-                val paymentId = "DEMO-${UUID.randomUUID().toString().take(8).uppercase()}"
-                val now = System.currentTimeMillis()
+                val body = gson.toJson(mapOf(
+                    "phone" to phone,
+                    "amount" to amount,
+                    "purpose" to purpose,
+                    "referenceId" to referenceId
+                ))
+                val request = Request.Builder()
+                    .url(BuildConfig.MPESA_SERVER_URL + "mpesa/stkpush")
+                    .post(body.toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                val response = http.newCall(request).execute()
+                val responseText = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    val message = runCatching { gson.fromJson(responseText, JsonObject::class.java).get("error")?.asString }.getOrNull()
+                    throw Exception(message ?: "M-Pesa server rejected the request.")
+                }
+                val accepted = gson.fromJson(responseText, JsonObject::class.java).get("accepted")?.asBoolean == true
+                if (!accepted) throw Exception("M-Pesa STK Push was not accepted.")
+
+                paymentStatus = "pending"
+                val verified = waitForVerifiedPayment(referenceId)
+                if (!verified) {
+                    onComplete(false)
+                    return@launch
+                }
 
                 when (purpose) {
                     "membership_registration" -> {
-                        // Return success. RegistrationScreen/AppNavHost handles creation.
+                        // Registration creates the Firebase Auth/member record only after verified payment.
                         paymentStatus = "paid"
                         onComplete(true)
                     }
                     "membership_renewal" -> {
-                        val memberRef = database.reference.child("members").child(uid!!)
+                        val uid = auth.currentUser?.uid ?: throw Exception("Please sign in before renewing membership.")
+                        val memberRef = database.reference.child("members").child(uid)
                         val snapshot = memberRef.get().await()
+                        if (!snapshot.exists()) throw Exception("Member profile not found.")
                         val existingExpiry = snapshot.child("membershipExpiry").getValue(String::class.java)
-                        val calendar = java.util.Calendar.getInstance()
+                        val calendar = Calendar.getInstance()
                         val today = calendar.time
-                        val existing = existingExpiry?.let {
-                            runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it) }.getOrNull()
-                        }
+                        val existing = existingExpiry?.let { runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it) }.getOrNull() }
                         val renewalBase = if (existing != null && existing.after(today)) existing else today
                         calendar.time = renewalBase
-                        calendar.add(java.util.Calendar.MONTH, planDuration ?: 0)
+                        calendar.add(Calendar.MONTH, planDuration ?: 0)
                         val expiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
-                        memberRef.updateChildren(
-                            mapOf(
-                                "planId" to planId,
-                                "planLabel" to planLabel,
-                                "planPrice" to amount,
-                                "planDuration" to planDuration,
-                                "membershipStart" to SimpleDateFormat("yyyy-MM-dd", Locale.US).format(renewalBase),
-                                "membershipExpiry" to expiry,
-                                "paymentStatus" to "paid",
-                                "paymentMethod" to "demo_mpesa",
-                                "lastPaymentId" to paymentId,
-                                "lastPaymentAt" to now,
-                                "lastRenewedAt" to now,
-                                "demoPayment" to true
-                            )
-                        ).await()
-                        
-                        database.reference.child("members").child(uid).child("demoPaymentHistory").child(paymentId).setValue(
-                            mapOf(
-                                "paymentId" to paymentId,
-                                "purpose" to purpose,
-                                "referenceId" to referenceId,
-                                "amountKsh" to amount,
-                                "status" to "paid",
-                                "method" to "demo_mpesa",
-                                "paidAt" to now,
-                                "environment" to "presentation",
-                                "receipt" to paymentId
-                            )
-                        ).await()
+                        val receipt = mpesaReceipt ?: referenceId
+                        memberRef.updateChildren(mapOf(
+                            "planId" to planId,
+                            "planLabel" to planLabel,
+                            "planPrice" to amount,
+                            "planDuration" to planDuration,
+                            "membershipStart" to SimpleDateFormat("yyyy-MM-dd", Locale.US).format(renewalBase),
+                            "membershipExpiry" to expiry,
+                            "paymentStatus" to "paid",
+                            "paymentMethod" to "mpesa_daraja_sandbox",
+                            "lastPaymentId" to receipt,
+                            "lastPaymentAt" to System.currentTimeMillis(),
+                            "lastRenewedAt" to System.currentTimeMillis()
+                        )).await()
+                        database.reference.child("members").child(uid).child("paymentHistory").child(referenceId).setValue(mapOf(
+                            "paymentId" to receipt,
+                            "purpose" to purpose,
+                            "referenceId" to referenceId,
+                            "amountKsh" to amount,
+                            "status" to "paid",
+                            "method" to "mpesa_daraja_sandbox",
+                            "paidAt" to System.currentTimeMillis(),
+                            "environment" to "sandbox",
+                            "receipt" to receipt
+                        )).await()
                         paymentStatus = "paid"
                         onComplete(true)
                     }
                     "shop_order" -> {
+                        val uid = auth.currentUser?.uid ?: throw Exception("Please sign in before paying for an order.")
+                        val receipt = mpesaReceipt ?: referenceId
                         val updates = mapOf(
                             "paymentStatus" to "paid",
-                            "paidAt" to now,
-                            "demoReceipt" to paymentId
+                            "paymentMethod" to "mpesa_daraja_sandbox",
+                            "paidAt" to System.currentTimeMillis(),
+                            "mpesaReceipt" to receipt,
+                            "status" to "pending_pickup"
                         )
-                        database.reference.child("orders").child(referenceId).updateChildren(updates).await()
-                        database.reference.child("members").child(uid!!).child("orders").child(referenceId).updateChildren(updates).await()
-                        
-                        database.reference.child("members").child(uid).child("demoPaymentHistory").child(paymentId).setValue(
-                            mapOf(
-                                "paymentId" to paymentId,
-                                "purpose" to purpose,
-                                "referenceId" to referenceId,
-                                "amountKsh" to amount,
-                                "status" to "paid",
-                                "method" to "demo_mpesa",
-                                "paidAt" to now,
-                                "environment" to "presentation",
-                                "receipt" to paymentId
-                            )
-                        ).await()
+                        val orderRef = database.reference.child("orders").child(referenceId)
+                        val orderSnapshot = orderRef.get().await()
+                        if (!orderSnapshot.exists()) throw Exception("Order could not be found.")
+                        if (orderSnapshot.child("userId").getValue(String::class.java) != uid) throw Exception("This order does not belong to the signed-in member.")
+                        orderRef.updateChildren(updates).await()
+                        database.reference.child("members").child(uid).child("orders").child(referenceId).updateChildren(updates).await()
+                        database.reference.child("members").child(uid).child("paymentHistory").child(referenceId).setValue(mapOf(
+                            "paymentId" to receipt,
+                            "purpose" to purpose,
+                            "referenceId" to referenceId,
+                            "amountKsh" to amount,
+                            "status" to "paid",
+                            "method" to "mpesa_daraja_sandbox",
+                            "paidAt" to System.currentTimeMillis(),
+                            "environment" to "sandbox",
+                            "receipt" to receipt
+                        )).await()
                         paymentStatus = "paid"
                         onComplete(true)
                     }
-                    else -> {
-                        errorMessage = "Unsupported demo payment type."
-                        paymentStatus = "failed"
-                        onComplete(false)
-                    }
+                    else -> throw Exception("Unsupported payment type.")
                 }
             } catch (e: Exception) {
                 paymentStatus = "failed"
-                errorMessage = e.message ?: "Demo payment could not be completed."
+                errorMessage = e.message ?: "M-Pesa payment failed."
                 onComplete(false)
             } finally {
                 isProcessing = false
@@ -194,17 +194,35 @@ class MpesaPaymentViewModel : ViewModel() {
         }
     }
 
-    fun simulateCancelledPayment(onComplete: (Boolean) -> Unit) {
-        if (isProcessing) return
-        isProcessing = true
-        errorMessage = null
-        paymentStatus = "pending"
-        viewModelScope.launch {
-            delay(450)
-            paymentStatus = "cancelled"
-            errorMessage = "Payment cancelled — no payment was made."
-            isProcessing = false
-            onComplete(false)
+    private suspend fun waitForVerifiedPayment(referenceId: String): Boolean {
+        repeat(30) {
+            delay(2000)
+            val request = Request.Builder()
+                .url(BuildConfig.MPESA_SERVER_URL + "mpesa/status/${java.net.URLEncoder.encode(referenceId, "UTF-8")}")
+                .get()
+                .build()
+            try {
+                val response = http.newCall(request).execute()
+                val text = response.body?.string().orEmpty()
+                if (!response.isSuccessful) continue
+                val json = gson.fromJson(text, JsonObject::class.java)
+                val status = json.get("status")?.asString
+                if (status == "paid") {
+                    mpesaReceipt = json.get("mpesaReceiptNumber")?.takeIf { !it.isJsonNull }?.asString
+                    paymentStatus = "paid"
+                    return true
+                }
+                if (status == "failed") {
+                    errorMessage = json.get("resultDesc")?.takeIf { !it.isJsonNull }?.asString ?: "M-Pesa payment was cancelled or failed."
+                    paymentStatus = "failed"
+                    return false
+                }
+            } catch (_: Exception) {
+                // Keep polling while the callback is in flight or the local server briefly reconnects.
+            }
         }
+        errorMessage = "M-Pesa confirmation timed out. Check the phone and try again."
+        paymentStatus = "failed"
+        return false
     }
 }
