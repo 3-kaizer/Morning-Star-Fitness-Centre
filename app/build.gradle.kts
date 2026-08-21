@@ -4,6 +4,13 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
+val localProperties = java.util.Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use(localProperties::load)
+}
+val mpesaServerUrl = localProperties.getProperty("mpesa.server.url", "http://10.0.2.2:3000/api/")
+
 android {
     namespace = "com.qwerty.morningstarfitness"
     compileSdk = 35
@@ -16,6 +23,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "MPESA_SERVER_URL", "\"${mpesaServerUrl.trimEnd('/')}/\"")
     }
 
     buildTypes {
@@ -25,12 +33,13 @@ android {
             }
         }
     }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-    buildFeatures {
-        compose = true
     }
 }
 
