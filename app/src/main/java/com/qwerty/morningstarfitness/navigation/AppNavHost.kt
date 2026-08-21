@@ -62,18 +62,14 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
     }
 
     NavHost(navController = navController, startDestination = startDestination, modifier = modifier) {
-        composable(ROUTE_ENTRY) {
-            EntryScreen(onCreateAccount = { navController.navigate(ROUTE_REGISTRATION) }, onLogin = { navController.navigate(ROUTE_LOGIN) }, onEnterGym = { navController.navigate(ROUTE_SCAN_ENTRY) })
-        }
+        composable(ROUTE_ENTRY) { EntryScreen(onCreateAccount = { navController.navigate(ROUTE_REGISTRATION) }, onLogin = { navController.navigate(ROUTE_LOGIN) }, onEnterGym = { navController.navigate(ROUTE_SCAN_ENTRY) }) }
         composable(ROUTE_SPLASH) { SplashScreen(onFinished = { val destination = if (authViewModel.currentUser() != null) ROUTE_HOME else ROUTE_ONBOARDING; navController.navigate(destination) { popUpTo(ROUTE_SPLASH) { inclusive = true } } }) }
         composable(ROUTE_ONBOARDING) { OnboardingScreen(onFinished = { navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_ONBOARDING) { inclusive = true } } }) }
-
         composable(ROUTE_LOGIN) {
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
             ManualEntryScreen(onBack = { navController.popBackStack() }, onSuccess = { goHome(scope) }, onForgotPassword = { email -> authViewModel.sendPasswordReset(email) { _, message -> Toast.makeText(context, message, Toast.LENGTH_LONG).show() } }, onPasswordSubmitted = { email, password -> authViewModel.signIn(email, password, onSuccess = { goHome(scope) }, onError = { message -> Toast.makeText(context, message, Toast.LENGTH_LONG).show() }) })
         }
-
         composable(ROUTE_SCAN_ENTRY) {
             val scope = rememberCoroutineScope()
             var isRecording by remember { mutableStateOf(false) }
@@ -87,70 +83,47 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
                 }
                 isMemberDataLoading = false
             }
-            QrEntryScreen(
-                qrCodeValue = memberViewModel.ensureMembershipQr(),
-                fullName = memberViewModel.memberForm?.fullName,
-                memberId = memberViewModel.memberId,
-                status = memberViewModel.getMembershipStatus(),
-                membershipExpiry = memberViewModel.membershipExpiry,
-                isLoading = isMemberDataLoading,
-                isRecording = isRecording,
-                checkInMessage = checkInMessage,
-                onBack = { navController.popBackStack() },
-                onPasswordEntry = { navController.navigate(ROUTE_PASSWORD_ENTRY) },
-                onRecordCheckIn = {
-                    if (!isRecording) scope.launch {
-                        if (authViewModel.currentUser() == null) {
-                            checkInMessage = "Verify your password to record this visit."
-                            navController.navigate(ROUTE_PASSWORD_ENTRY)
-                            return@launch
-                        }
-                        isRecording = true
-                        val recorded = attendanceViewModel.recordCheckIn()
-                        if (recorded) {
-                            checkInMessage = "Check-in recorded for today."
-                            memberViewModel.refreshFromFirebase()
-                            attendanceViewModel.fetchAttendanceHistory()
-                            navController.navigate(ROUTE_HOME) {
-                                popUpTo(ROUTE_SCAN_ENTRY) { inclusive = true }
-                            }
-                        } else {
-                            checkInMessage = attendanceViewModel.lastCheckInError ?: "You are already checked in today."
-                        }
-                        isRecording = false
+            QrEntryScreen(qrCodeValue = memberViewModel.ensureMembershipQr(), fullName = memberViewModel.memberForm?.fullName, memberId = memberViewModel.memberId, status = memberViewModel.getMembershipStatus(), membershipExpiry = memberViewModel.membershipExpiry, isLoading = isMemberDataLoading, isRecording = isRecording, checkInMessage = checkInMessage, onBack = { navController.popBackStack() }, onPasswordEntry = { navController.navigate(ROUTE_PASSWORD_ENTRY) }, onRecordCheckIn = {
+                if (!isRecording) scope.launch {
+                    if (authViewModel.currentUser() == null) {
+                        checkInMessage = "Please sign in before using the security-question fallback."
+                        navController.navigate(ROUTE_LOGIN)
+                        return@launch
                     }
+                    isRecording = true
+                    val recorded = attendanceViewModel.recordCheckIn()
+                    if (recorded) {
+                        checkInMessage = "Check-in recorded for today."
+                        memberViewModel.refreshFromFirebase()
+                        attendanceViewModel.fetchAttendanceHistory()
+                        navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_SCAN_ENTRY) { inclusive = true } }
+                    } else checkInMessage = attendanceViewModel.lastCheckInError ?: "You are already checked in today."
+                    isRecording = false
                 }
-            )
+            })
         }
-
         composable(ROUTE_PASSWORD_ENTRY) {
             val scope = rememberCoroutineScope()
             var isVerifying by remember { mutableStateOf(false) }
             var errorMessage by remember { mutableStateOf<String?>(null) }
-            PasswordEntryScreen(memberName = memberViewModel.memberForm?.fullName, isVerifying = isVerifying, errorMessage = errorMessage, onBack = { navController.popBackStack() }, onVerify = { password ->
+            PasswordEntryScreen(memberName = memberViewModel.memberForm?.fullName, securityQuestion = memberViewModel.memberForm?.securityQuestion, isVerifying = isVerifying, errorMessage = errorMessage, onBack = { navController.popBackStack() }, onVerify = { answer ->
                 scope.launch {
                     isVerifying = true
                     errorMessage = null
-                    val currentUser = authViewModel.currentUser()
-                    val authenticated = if (currentUser != null) authViewModel.verifyCurrentUserPassword(password) else authViewModel.signInForGymEntry(memberViewModel.memberForm?.email.orEmpty(), password)
-                    if (authenticated) {
+                    if (authViewModel.currentUser() == null) {
+                        errorMessage = "Your session has expired. Please sign in again."
+                    } else if (memberViewModel.verifySecurityAnswer(answer)) {
                         val recorded = attendanceViewModel.recordCheckIn()
                         if (recorded) {
-                            errorMessage = null
                             memberViewModel.refreshFromFirebase()
                             attendanceViewModel.fetchAttendanceHistory()
                             navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_PASSWORD_ENTRY) { inclusive = true } }
-                        } else {
-                            errorMessage = attendanceViewModel.lastCheckInError ?: "You are already checked in today."
-                        }
-                    } else {
-                        errorMessage = "Incorrect password. Please try again."
-                    }
+                        } else errorMessage = attendanceViewModel.lastCheckInError ?: "You are already checked in today."
+                    } else errorMessage = "Incorrect security answer. Please try again."
                     isVerifying = false
                 }
             })
         }
-
         composable(ROUTE_REGISTRATION) { RegistrationScreen(onContinue = { form -> memberViewModel.updateMemberForm(form); navController.navigate(ROUTE_PLAN) }) }
         composable(ROUTE_PLAN) { PlanScreen(onBack = { navController.popBackStack() }, onContinue = { plan -> memberViewModel.updateSelectedPlan(plan); navController.navigate(ROUTE_PAYMENT) }) }
         composable(ROUTE_PAYMENT) {
