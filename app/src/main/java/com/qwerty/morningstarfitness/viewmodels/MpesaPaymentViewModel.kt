@@ -21,6 +21,7 @@ import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 class MpesaPaymentViewModel : ViewModel() {
@@ -33,6 +34,7 @@ class MpesaPaymentViewModel : ViewModel() {
     var errorMessage by mutableStateOf<String?>(null); private set
     var paymentStatus by mutableStateOf<String?>(null); private set
     var mpesaReceipt by mutableStateOf<String?>(null); private set
+    val isPresentationSandbox: Boolean get() = BuildConfig.MPESA_DEMO_MODE
 
     fun reset() { isProcessing = false; errorMessage = null; paymentStatus = null; mpesaReceipt = null }
 
@@ -41,6 +43,12 @@ class MpesaPaymentViewModel : ViewModel() {
         if (amount < 1) { errorMessage = "Invalid payment amount."; onComplete(false); return }
         if (phone.isBlank()) { errorMessage = "A valid M-Pesa phone number is required."; onComplete(false); return }
         errorMessage = null; paymentStatus = "starting"; mpesaReceipt = null; isProcessing = true
+
+        if (BuildConfig.MPESA_DEMO_MODE) {
+            runPresentationSandboxPayment(amount, purpose, referenceId, planId, planLabel, planDuration, onComplete)
+            return
+        }
+
         viewModelScope.launch {
             try {
                 val body = gson.toJson(mapOf("phone" to phone, "amount" to amount, "purpose" to purpose, "referenceId" to referenceId))
@@ -55,40 +63,61 @@ class MpesaPaymentViewModel : ViewModel() {
                 if (!accepted) throw Exception("M-Pesa STK Push was not accepted.")
                 paymentStatus = "pending"
                 if (!waitForVerifiedPayment(referenceId)) { onComplete(false); return@launch }
+                completeVerifiedPayment(amount, purpose, referenceId, planId, planLabel, planDuration, onComplete)
+            } catch (e: Exception) {
+                paymentStatus = "failed"; errorMessage = e.message ?: "M-Pesa payment failed."; onComplete(false)
+            } finally { isProcessing = false }
+        }
+    }
 
-                when (purpose) {
-                    "membership_registration" -> { paymentStatus = "paid"; onComplete(true) }
-                    "membership_renewal" -> {
-                        val uid = auth.currentUser?.uid ?: throw Exception("Please sign in before renewing membership.")
-                        val memberRef = database.reference.child("members").child(uid)
-                        val snapshot = memberRef.get().await()
-                        if (!snapshot.exists()) throw Exception("Member profile not found.")
-                        val existingExpiry = snapshot.child("membershipExpiry").getValue(String::class.java)
-                        val calendar = Calendar.getInstance(); val today = calendar.time
-                        val existing = existingExpiry?.let { runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it) }.getOrNull() }
-                        val renewalBase = if (existing != null && existing.after(today)) existing else today
-                        calendar.time = renewalBase; calendar.add(Calendar.MONTH, planDuration ?: 0)
-                        val expiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
-                        val now = System.currentTimeMillis(); val receipt = mpesaReceipt ?: referenceId
-                        memberRef.updateChildren(mapOf("planId" to planId, "planLabel" to planLabel, "planPrice" to amount, "planDuration" to planDuration, "membershipStart" to SimpleDateFormat("yyyy-MM-dd", Locale.US).format(renewalBase), "membershipExpiry" to expiry, "paymentStatus" to "paid", "paymentMethod" to "mpesa_daraja_sandbox", "lastPaymentId" to receipt, "lastPaymentAt" to now, "lastRenewedAt" to now)).await()
-                        database.reference.child("members").child(uid).child("paymentHistory").child(referenceId).setValue(mapOf("paymentId" to receipt, "purpose" to purpose, "referenceId" to referenceId, "amountKsh" to amount, "status" to "paid", "method" to "mpesa_daraja_sandbox", "paidAt" to now, "environment" to "sandbox", "receipt" to receipt)).await()
-                        paymentStatus = "paid"; onComplete(true)
-                    }
-                    "shop_order" -> {
-                        val uid = auth.currentUser?.uid ?: throw Exception("Please sign in before paying for an order.")
-                        val receipt = mpesaReceipt ?: referenceId; val now = System.currentTimeMillis()
-                        val updates = mapOf("paymentStatus" to "paid", "paymentMethod" to "mpesa_daraja_sandbox", "paidAt" to now, "mpesaReceipt" to receipt, "status" to "pending_pickup")
-                        val orderRef = database.reference.child("orders").child(referenceId); val orderSnapshot = orderRef.get().await()
-                        if (!orderSnapshot.exists()) throw Exception("Order could not be found.")
-                        if (orderSnapshot.child("userId").getValue(String::class.java) != uid) throw Exception("This order does not belong to the signed-in member.")
-                        orderRef.updateChildren(updates).await(); database.reference.child("members").child(uid).child("orders").child(referenceId).updateChildren(updates).await()
-                        database.reference.child("members").child(uid).child("paymentHistory").child(referenceId).setValue(mapOf("paymentId" to receipt, "purpose" to purpose, "referenceId" to referenceId, "amountKsh" to amount, "status" to "paid", "method" to "mpesa_daraja_sandbox", "paidAt" to now, "environment" to "sandbox", "receipt" to receipt)).await()
-                        paymentStatus = "paid"; onComplete(true)
-                    }
-                    else -> throw Exception("Unsupported payment type.")
-                }
-            } catch (e: Exception) { paymentStatus = "failed"; errorMessage = e.message ?: "M-Pesa payment failed."; onComplete(false) }
-            finally { isProcessing = false }
+    private fun runPresentationSandboxPayment(amount: Int, purpose: String, referenceId: String, planId: String?, planLabel: String?, planDuration: Int?, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                paymentStatus = "sandbox_pending"
+                delay(1200)
+                mpesaReceipt = "SANDBOX-${UUID.randomUUID().toString().replace("-", "").take(10).uppercase()}"
+                paymentStatus = "paid"
+                completeVerifiedPayment(amount, purpose, referenceId, planId, planLabel, planDuration, onComplete)
+            } catch (e: Exception) {
+                paymentStatus = "failed"; errorMessage = e.message ?: "Presentation sandbox payment failed."; onComplete(false)
+            } finally { isProcessing = false }
+        }
+    }
+
+    private suspend fun completeVerifiedPayment(amount: Int, purpose: String, referenceId: String, planId: String?, planLabel: String?, planDuration: Int?, onComplete: (Boolean) -> Unit) {
+        when (purpose) {
+            "membership_registration" -> {
+                paymentStatus = "paid"
+                onComplete(true)
+            }
+            "membership_renewal" -> {
+                val uid = auth.currentUser?.uid ?: throw Exception("Please sign in before renewing membership.")
+                val memberRef = database.reference.child("members").child(uid)
+                val snapshot = memberRef.get().await()
+                if (!snapshot.exists()) throw Exception("Member profile not found.")
+                val existingExpiry = snapshot.child("membershipExpiry").getValue(String::class.java)
+                val calendar = Calendar.getInstance(); val today = calendar.time
+                val existing = existingExpiry?.let { runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it) }.getOrNull() }
+                val renewalBase = if (existing != null && existing.after(today)) existing else today
+                calendar.time = renewalBase; calendar.add(Calendar.MONTH, planDuration ?: 0)
+                val expiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
+                val now = System.currentTimeMillis(); val receipt = mpesaReceipt ?: referenceId
+                memberRef.updateChildren(mapOf("planId" to planId, "planLabel" to planLabel, "planPrice" to amount, "planDuration" to planDuration, "membershipStart" to SimpleDateFormat("yyyy-MM-dd", Locale.US).format(renewalBase), "membershipExpiry" to expiry, "paymentStatus" to "paid", "paymentMethod" to if (BuildConfig.MPESA_DEMO_MODE) "sandbox_demo" else "mpesa_daraja_sandbox", "lastPaymentId" to receipt, "lastPaymentAt" to now, "lastRenewedAt" to now)).await()
+                database.reference.child("members").child(uid).child("paymentHistory").child(referenceId).setValue(mapOf("paymentId" to receipt, "purpose" to purpose, "referenceId" to referenceId, "amountKsh" to amount, "status" to "paid", "method" to if (BuildConfig.MPESA_DEMO_MODE) "sandbox_demo" else "mpesa_daraja_sandbox", "paidAt" to now, "environment" to if (BuildConfig.MPESA_DEMO_MODE) "presentation" else "sandbox", "receipt" to receipt)).await()
+                paymentStatus = "paid"; onComplete(true)
+            }
+            "shop_order" -> {
+                val uid = auth.currentUser?.uid ?: throw Exception("Please sign in before paying for an order.")
+                val receipt = mpesaReceipt ?: referenceId; val now = System.currentTimeMillis()
+                val updates = mapOf("paymentStatus" to "paid", "paymentMethod" to if (BuildConfig.MPESA_DEMO_MODE) "sandbox_demo" else "mpesa_daraja_sandbox", "paidAt" to now, "mpesaReceipt" to receipt, "status" to "pending_pickup")
+                val orderRef = database.reference.child("orders").child(referenceId); val orderSnapshot = orderRef.get().await()
+                if (!orderSnapshot.exists()) throw Exception("Order could not be found.")
+                if (orderSnapshot.child("userId").getValue(String::class.java) != uid) throw Exception("This order does not belong to the signed-in member.")
+                orderRef.updateChildren(updates).await(); database.reference.child("members").child(uid).child("orders").child(referenceId).updateChildren(updates).await()
+                database.reference.child("members").child(uid).child("paymentHistory").child(referenceId).setValue(mapOf("paymentId" to receipt, "purpose" to purpose, "referenceId" to referenceId, "amountKsh" to amount, "status" to "paid", "method" to if (BuildConfig.MPESA_DEMO_MODE) "sandbox_demo" else "mpesa_daraja_sandbox", "paidAt" to now, "environment" to if (BuildConfig.MPESA_DEMO_MODE) "presentation" else "sandbox", "receipt" to receipt)).await()
+                paymentStatus = "paid"; onComplete(true)
+            }
+            else -> throw Exception("Unsupported payment type.")
         }
     }
 
