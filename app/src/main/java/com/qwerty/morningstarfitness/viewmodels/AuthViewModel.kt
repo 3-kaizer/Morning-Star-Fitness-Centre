@@ -2,10 +2,12 @@ package com.qwerty.morningstarfitness.viewmodels
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.database.FirebaseDatabase
-import com.qwerty.morningstarfitness.models.MembershipPlanModel
 import com.qwerty.morningstarfitness.security.hashSecurityAnswer
 import com.qwerty.morningstarfitness.ui.screens.registration.MemberFormState
+import com.qwerty.morningstarfitness.models.MembershipPlanModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import androidx.compose.runtime.getValue
@@ -35,7 +37,7 @@ class AuthViewModel : ViewModel() {
                 auth.signInWithEmailAndPassword(cleanEmail, password).await()
                 onSuccess()
             } catch (e: Exception) {
-                onError(e.message ?: "Authentication failed. Please check your details.")
+                onError(friendlyAuthError(e))
             }
         }
     }
@@ -53,6 +55,11 @@ class AuthViewModel : ViewModel() {
         }
     }
 
+    /**
+     * Password fallback for gym entry when QR cannot be used.
+     * The email comes from the saved member record; the password is verified by Firebase Auth.
+     * The password is never stored in Realtime Database.
+     */
     suspend fun signInForGymEntry(email: String, password: String): Boolean {
         val cleanEmail = email.trim()
         if (cleanEmail.isBlank() || password.isBlank()) return false
@@ -154,4 +161,10 @@ class AuthViewModel : ViewModel() {
     }
 
     fun currentUser() = auth.currentUser
+
+    private fun friendlyAuthError(error: Exception): String = when (error) {
+        is FirebaseAuthInvalidUserException -> "No account was found for that email."
+        is FirebaseAuthInvalidCredentialsException -> "Incorrect email or password."
+        else -> error.message ?: "Authentication failed. Please check your details."
+    }
 }
