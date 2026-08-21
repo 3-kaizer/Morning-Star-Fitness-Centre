@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,7 +79,9 @@ fun HomeScreen(
     attendanceCount: Int = 0,
     trainerCount: Int = 4,
     notificationCount: Int = 2,
-    isLoaded: Boolean = true
+    isLoaded: Boolean = true,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {}
 ) {
     val membershipExpired = membershipExpiry?.let(::isExpired) == true
     val daysLeft = membershipExpiry?.let(::daysUntil)
@@ -86,67 +89,73 @@ fun HomeScreen(
     val needsRenewal = plan != null && (membershipExpired || (daysLeft != null && daysLeft <= 5))
     val progress = membershipProgress(membershipStart, membershipExpiry)
 
-    Box(Modifier.fillMaxSize().background(PulseColors.Background).padding(horizontal = 18.dp, vertical = 16.dp), contentAlignment = Alignment.TopCenter) {
-        Column(Modifier.fillMaxWidth().widthIn(max = 460.dp).verticalScroll(rememberScrollState())) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("MEMBER DASHBOARD", color = PulseColors.Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.8.sp)
-                    Heading("${greeting()}, $firstName")
-                    Text("Everything you need for your next session.", color = PulseColors.TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Box(Modifier.fillMaxSize().background(PulseColors.Background).padding(horizontal = 18.dp, vertical = 16.dp), contentAlignment = Alignment.TopCenter) {
+            Column(Modifier.fillMaxWidth().widthIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("MEMBER DASHBOARD", color = PulseColors.Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.8.sp)
+                        Heading("${greeting()}, $firstName")
+                        Text("Everything you need for your next session.", color = PulseColors.TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
+                    }
+                    Box(Modifier.size(48.dp).background(PulseColors.Accent, CircleShape), contentAlignment = Alignment.Center) {
+                        Text(firstName.take(1).uppercase().ifBlank { "M" }, color = PulseColors.Background, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    }
                 }
-                Box(Modifier.size(48.dp).background(PulseColors.Accent, CircleShape), contentAlignment = Alignment.Center) {
-                    Text(firstName.take(1).uppercase().ifBlank { "M" }, color = PulseColors.Background, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-            AnimatedVisibility(!isLoaded) { LoadingHero() }
-            AnimatedVisibility(isLoaded, enter = fadeIn(), exit = fadeOut()) {
-                Column {
-                    MembershipHero(plan, membershipStatus, daysLeft, membershipExpired, progress,
-                        when { plan == null -> "GET STARTED"; needsRenewal -> "RENEW MEMBERSHIP"; else -> "SHOW MY QR" },
-                        when { plan == null -> onGetStarted; needsRenewal -> onRenewMembership; else -> onScanEntry })
+                Spacer(Modifier.height(14.dp))
+                AnimatedVisibility(!isLoaded) { LoadingHero() }
+                AnimatedVisibility(isLoaded, enter = fadeIn(), exit = fadeOut()) {
+                    Column {
+                        MembershipHero(plan, membershipStatus, daysLeft, membershipExpired, progress,
+                            when { plan == null -> "GET STARTED"; needsRenewal -> "RENEW MEMBERSHIP"; else -> "SHOW MY QR" },
+                            when { plan == null -> onGetStarted; needsRenewal -> onRenewMembership; else -> onScanEntry })
 
-                    Spacer(Modifier.height(14.dp))
-                    if (needsRenewal) { RenewalNotice(daysLeft, membershipExpired, onRenewMembership); Spacer(Modifier.height(14.dp)) }
+                        Spacer(Modifier.height(14.dp))
+                        if (needsRenewal) { RenewalNotice(daysLeft, membershipExpired, onRenewMembership); Spacer(Modifier.height(14.dp)) }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        MetricCard("VISITS", attendanceCount.toString(), Icons.Default.EventAvailable, Modifier.weight(1f))
-                        MetricCard("DAYS LEFT", when { plan == null -> "—"; membershipExpired -> "0"; daysLeft != null -> daysLeft.toString(); else -> "—" }, Icons.Default.History, Modifier.weight(1f))
-                        MetricCard("PLAN", plan?.label ?: "—", Icons.Default.Person, Modifier.weight(1.15f))
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-                    Row(Modifier.fillMaxWidth().background(PulseColors.Surface, RoundedCornerShape(15.dp)).border(1.dp, PulseColors.Border, RoundedCornerShape(15.dp)).clickable(onClick = onOpenGymStatus).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(38.dp).background(PulseColors.AccentLime.copy(alpha = .15f), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Default.FitnessCenter, null, tint = PulseColors.AccentLime, modifier = Modifier.size(19.dp)) }
-                        Column(Modifier.weight(1f).padding(start = 11.dp)) {
-                            Text("GYM OPEN", color = PulseColors.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
-                            Text("6:00 AM – 10:00 PM  •  $trainerCount trainers on duty", color = PulseColors.TextMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
-                        }
-                        Text("›", color = PulseColors.Accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    Spacer(Modifier.height(20.dp))
-                    SectionLabel("Quick actions")
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ActionCard(Icons.Default.QrCodeScanner, "Enter the gym", "Show your member QR at the scanner", onScanEntry, featured = true)
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            ActionCard(Icons.Default.History, "History", "Review your visits", onOpenAttendance, Modifier.weight(1f))
-                            ActionCard(Icons.Default.FitnessCenter, "Trainers", "See who's in today", onOpenTrainers, Modifier.weight(1f))
+                            MetricCard("VISITS", attendanceCount.toString(), Icons.Default.EventAvailable, Modifier.weight(1f))
+                            MetricCard("DAYS LEFT", when { plan == null -> "—"; membershipExpired -> "0"; daysLeft != null -> daysLeft.toString(); else -> "—" }, Icons.Default.History, Modifier.weight(1f))
+                            MetricCard("PLAN", plan?.label ?: "—", Icons.Default.Person, Modifier.weight(1.15f))
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            ActionCard(Icons.Default.CreditCard, "Payments", "View your payments", onOpenPaymentHistory, Modifier.weight(1f))
-                            ActionCard(Icons.Default.ShoppingCart, "Shop", "Gym essentials", onOpenShop, Modifier.weight(1f))
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            ActionCard(Icons.Default.Person, "Member card", "ID, plan and QR", onOpenMemberCard, Modifier.weight(1f))
-                            ActionCard(Icons.Default.Notifications, "Notifications", "$notificationCount updates", onOpenNotifications, Modifier.weight(1f))
-                        }
-                        ActionCard(Icons.Default.Person, "My profile", "Update your personal details", onOpenProfile)
-                    }
 
-                    Spacer(Modifier.height(22.dp))
-                    GhostButton("Log out", onLogout, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(12.dp))
+                        Row(Modifier.fillMaxWidth().background(PulseColors.Surface, RoundedCornerShape(15.dp)).border(1.dp, PulseColors.Border, RoundedCornerShape(15.dp)).clickable(onClick = onOpenGymStatus).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(38.dp).background(PulseColors.AccentLime.copy(alpha = .15f), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Default.FitnessCenter, null, tint = PulseColors.AccentLime, modifier = Modifier.size(19.dp)) }
+                            Column(Modifier.weight(1f).padding(start = 11.dp)) {
+                                Text("GYM OPEN", color = PulseColors.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                                Text("6:00 AM – 10:00 PM  •  $trainerCount trainers on duty", color = PulseColors.TextMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+                            }
+                            Text("›", color = PulseColors.Accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(Modifier.height(20.dp))
+                        SectionLabel("Quick actions")
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            ActionCard(Icons.Default.QrCodeScanner, "Enter the gym", "Show your member QR at the scanner", onScanEntry, featured = true)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                                ActionCard(Icons.Default.History, "History", "Review your visits", onOpenAttendance, Modifier.weight(1f))
+                                ActionCard(Icons.Default.FitnessCenter, "Trainers", "See who's in today", onOpenTrainers, Modifier.weight(1f))
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                                ActionCard(Icons.Default.CreditCard, "Payments", "View your payments", onOpenPaymentHistory, Modifier.weight(1f))
+                                ActionCard(Icons.Default.ShoppingCart, "Shop", "Gym essentials", onOpenShop, Modifier.weight(1f))
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                                ActionCard(Icons.Default.Person, "Member card", "ID, plan and QR", onOpenMemberCard, Modifier.weight(1f))
+                                ActionCard(Icons.Default.Notifications, "Notifications", "$notificationCount updates", onOpenNotifications, Modifier.weight(1f))
+                            }
+                            ActionCard(Icons.Default.Person, "My profile", "Update your personal details", onOpenProfile)
+                        }
+
+                        Spacer(Modifier.height(22.dp))
+                        GhostButton("Log out", onLogout, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
         }
