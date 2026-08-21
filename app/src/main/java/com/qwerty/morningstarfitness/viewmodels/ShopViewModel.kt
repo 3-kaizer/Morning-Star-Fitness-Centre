@@ -73,6 +73,9 @@ class ShopViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
+                // Member data lives only under /members/{firebaseUid}.
+                // Orders live only under /orders/{orderId}. This keeps the Firebase
+                // console clean and makes the two collections easy to demonstrate.
                 val memberSnapshot = database.reference.child("members").child(uid).get().await()
                 if (!memberSnapshot.exists()) throw Exception("Member profile not found.")
 
@@ -110,8 +113,8 @@ class ShopViewModel : ViewModel() {
 
                 val orderMap = mapOf(
                     "orderId" to order.orderId,
-                    "userId" to order.userId,
                     "memberId" to order.memberId,
+                    "userId" to order.userId,
                     "customerName" to order.customerName,
                     "customerPhone" to order.customerPhone,
                     "customerEmail" to order.customerEmail,
@@ -130,10 +133,9 @@ class ShopViewModel : ViewModel() {
                     "orderedAt" to now
                 )
 
-                // Keep the Firebase Auth UID as the stable database key while storing
-                // the human-readable Member ID on the order for easy identification.
+                // Single source of truth for shop orders: /orders/{orderId}.
+                // Member records remain separate under /members/{uid}.
                 database.reference.child("orders").child(orderId).setValue(orderMap).await()
-                database.reference.child("members").child(uid).child("orders").child(orderId).setValue(orderMap).await()
                 onComplete(true, orderId)
             } catch (e: Exception) {
                 orderError = e.message ?: "Could not initiate the order."
