@@ -54,7 +54,14 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
     fun firstName(): String = memberViewModel.memberForm?.fullName?.split(" ")?.firstOrNull()?.ifBlank { "there" } ?: "there"
     fun goHome(scope: kotlinx.coroutines.CoroutineScope) {
         scope.launch {
-            memberViewModel.refreshFromFirebase()
+            val memberLoaded = memberViewModel.refreshFromFirebase()
+            if (!memberLoaded) {
+                authViewModel.signOut()
+                memberViewModel.clearLocalData()
+                Toast.makeText(LocalContext.current, "Member profile not found. Please register again.", Toast.LENGTH_LONG).show()
+                navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
+                return@launch
+            }
             attendanceViewModel.fetchAttendanceHistory()
             paymentHistoryViewModel.refresh()
             navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
@@ -86,7 +93,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             QrEntryScreen(qrCodeValue = memberViewModel.ensureMembershipQr(), fullName = memberViewModel.memberForm?.fullName, memberId = memberViewModel.memberId, status = memberViewModel.getMembershipStatus(), membershipExpiry = memberViewModel.membershipExpiry, isLoading = isMemberDataLoading, isRecording = isRecording, checkInMessage = checkInMessage, onBack = { navController.popBackStack() }, onPasswordEntry = { navController.navigate(ROUTE_PASSWORD_ENTRY) }, onRecordCheckIn = {
                 if (!isRecording) scope.launch {
                     if (authViewModel.currentUser() == null) {
-                        checkInMessage = "Please sign in before using the security-question fallback."
+                        checkInMessage = "Please sign in before using the password fallback."
                         navController.navigate(ROUTE_LOGIN)
                         return@launch
                     }
@@ -106,20 +113,20 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             val scope = rememberCoroutineScope()
             var isVerifying by remember { mutableStateOf(false) }
             var errorMessage by remember { mutableStateOf<String?>(null) }
-            PasswordEntryScreen(memberName = memberViewModel.memberForm?.fullName, securityQuestion = memberViewModel.memberForm?.securityQuestion, isVerifying = isVerifying, errorMessage = errorMessage, onBack = { navController.popBackStack() }, onVerify = { answer ->
+            PasswordEntryScreen(memberName = memberViewModel.memberForm?.fullName, securityQuestion = null, isVerifying = isVerifying, errorMessage = errorMessage, onBack = { navController.popBackStack() }, onVerify = { password ->
                 scope.launch {
                     isVerifying = true
                     errorMessage = null
                     if (authViewModel.currentUser() == null) {
                         errorMessage = "Your session has expired. Please sign in again."
-                    } else if (memberViewModel.verifySecurityAnswer(answer)) {
+                    } else if (authViewModel.verifyCurrentUserPassword(password)) {
                         val recorded = attendanceViewModel.recordCheckIn()
                         if (recorded) {
                             memberViewModel.refreshFromFirebase()
                             attendanceViewModel.fetchAttendanceHistory()
                             navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_PASSWORD_ENTRY) { inclusive = true } }
                         } else errorMessage = attendanceViewModel.lastCheckInError ?: "You are already checked in today."
-                    } else errorMessage = "Incorrect security answer. Please try again."
+                    } else errorMessage = "Incorrect account password. Please try again."
                     isVerifying = false
                 }
             })
@@ -145,47 +152,20 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             val scope = rememberCoroutineScope()
             var isRefreshing by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) {
-                memberViewModel.syncWithFirebase()
+                memberViewModel.refreshFromFirebase()
                 attendanceViewModel.fetchAttendanceHistory()
                 paymentHistoryViewModel.refresh()
             }
-            HomeScreen(
-                firstName = firstName(),
-                plan = memberViewModel.selectedPlan,
-                onLogout = { authViewModel.signOut(); memberViewModel.clearLocalData(); attendanceViewModel.clearHistory(); navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_HOME) { inclusive = true } } },
-                onOpenShop = { navController.navigate(ROUTE_SHOP) },
-                onOpenProfile = { navController.navigate(ROUTE_PROFILE) },
-                onOpenAttendance = { navController.navigate(ROUTE_ATTENDANCE) },
-                onOpenTrainers = { navController.navigate(ROUTE_TRAINERS) },
-                onOpenGymStatus = { navController.navigate(ROUTE_GYM_STATUS) },
-                onOpenNotifications = { navController.navigate(ROUTE_NOTIFICATIONS) },
-                onOpenPaymentHistory = { navController.navigate(ROUTE_PAYMENT_HISTORY) },
-                onOpenMemberCard = { navController.navigate(ROUTE_MEMBER_CARD) },
-                onScanEntry = { navController.navigate(ROUTE_SCAN_ENTRY) },
-                onGetStarted = { navController.navigate(ROUTE_REGISTRATION) },
-                onRenewMembership = { navController.navigate(ROUTE_RENEW) },
-                membershipStart = memberViewModel.membershipStart,
-                membershipExpiry = memberViewModel.membershipExpiry,
-                attendanceCount = attendanceViewModel.attendanceHistory.size,
-                trainerCount = 4,
-                notificationCount = 2,
-                isLoaded = memberViewModel.isLoaded,
-                isRefreshing = isRefreshing,
-                onRefresh = {
-                    if (!isRefreshing) {
-                        scope.launch {
-                            isRefreshing = true
-                            try {
-                                memberViewModel.syncWithFirebase()
-                                attendanceViewModel.fetchAttendanceHistory()
-                                paymentHistoryViewModel.refresh()
-                            } finally {
-                                isRefreshing = false
-                            }
-                        }
-                    }
+            HomeScreen(firstName = firstName(), plan = memberViewModel.selectedPlan, onLogout = { authViewModel.signOut(); memberViewModel.clearLocalData(); attendanceViewModel.clearHistory(); navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_HOME) { inclusive = true } } }, onOpenShop = { navController.navigate(ROUTE_SHOP) }, onOpenProfile = { navController.navigate(ROUTE_PROFILE) }, onOpenAttendance = { navController.navigate(ROUTE_ATTENDANCE) }, onOpenTrainers = { navController.navigate(ROUTE_TRAINERS) }, onOpenGymStatus = { navController.navigate(ROUTE_GYM_STATUS) }, onOpenNotifications = { navController.navigate(ROUTE_NOTIFICATIONS) }, onOpenPaymentHistory = { navController.navigate(ROUTE_PAYMENT_HISTORY) }, onOpenMemberCard = { navController.navigate(ROUTE_MEMBER_CARD) }, onScanEntry = { navController.navigate(ROUTE_SCAN_ENTRY) }, onGetStarted = { navController.navigate(ROUTE_REGISTRATION) }, onRenewMembership = { navController.navigate(ROUTE_RENEW) }, membershipStart = memberViewModel.membershipStart, membershipExpiry = memberViewModel.membershipExpiry, attendanceCount = attendanceViewModel.attendanceHistory.size, trainerCount = 4, notificationCount = 2, isLoaded = memberViewModel.isLoaded, isRefreshing = isRefreshing, onRefresh = {
+                if (!isRefreshing) scope.launch {
+                    isRefreshing = true
+                    try {
+                        memberViewModel.refreshFromFirebase()
+                        attendanceViewModel.fetchAttendanceHistory()
+                        paymentHistoryViewModel.refresh()
+                    } finally { isRefreshing = false }
                 }
-            )
+            })
         }
         composable(ROUTE_ATTENDANCE) { AttendanceScreen(entries = attendanceViewModel.attendanceHistory, onBack = { navController.popBackStack() }) }
         composable(ROUTE_TRAINERS) { TrainersScreen(onBack = { navController.popBackStack() }, onTrainerSelected = { trainer: TrainerSummary -> navController.navigate(ROUTE_TRAINER_DETAIL + "?name=${trainer.name}&specialty=${trainer.specialty}&schedule=${trainer.schedule}") }) }
