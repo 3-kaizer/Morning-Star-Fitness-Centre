@@ -39,10 +39,41 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
 
     init { restoreSavedMember() }
 
-    private fun applySnapshot(s: com.google.firebase.database.DataSnapshot) {
+    private fun stableMemberId(uid: String): String = "MSFC-" + uid.take(8).uppercase()
+
+    private suspend fun migrateExistingMember(snapshot: com.google.firebase.database.DataSnapshot): String {
+        val uid = auth.currentUser?.uid ?: return snapshot.child("memberId").getValue(String::class.java).orEmpty()
+        val existing = snapshot.child("memberId").getValue(String::class.java).orEmpty()
+        val migratedId = when {
+            existing.startsWith("MSFC-", ignoreCase = true) -> existing.uppercase()
+            existing.isNotBlank() -> "MSFC-" + existing.removePrefix("MSF-").take(8).uppercase().ifBlank { uid.take(8).uppercase() }
+            else -> stableMemberId(uid)
+        }
+
+        val updates = mutableMapOf<String, Any>(
+            "memberId" to migratedId,
+            "memberRecordVersion" to 2
+        )
+        if (snapshot.child("fullName").getValue(String::class.java).isNullOrBlank()) {
+            updates["fullName"] = "Member"
+        }
+        if (snapshot.child("email").getValue(String::class.java).isNullOrBlank()) {
+            auth.currentUser?.email?.takeIf { it.isNotBlank() }?.let { updates["email"] = it }
+        }
+        if (snapshot.child("paymentStatus").getValue(String::class.java).isNullOrBlank()) updates["paymentStatus"] = "pending"
+        if (snapshot.child("paymentMethod").getValue(String::class.java).isNullOrBlank()) updates["paymentMethod"] = "mpesa"
+        snapshot.ref.updateChildren(updates).await()
+        return migratedId
+    }
+
+    private suspend fun normalizeMemberData(snapshot: com.google.firebase.database.DataSnapshot): String {
+        return migrateExistingMember(snapshot)
+    }
+
+    private fun applySnapshot(s: com.google.firebase.database.DataSnapshot, normalizedMemberId: String? = null) {
         memberForm = MemberFormState(
             fullName = s.child("fullName").getValue(String::class.java).orEmpty(), phone = s.child("phone").getValue(String::class.java).orEmpty(), email = s.child("email").getValue(String::class.java).orEmpty(), dob = s.child("dob").getValue(String::class.java).orEmpty(), gender = s.child("gender").getValue(String::class.java).orEmpty(), emergencyContact = s.child("emergencyContact").getValue(String::class.java).orEmpty(), securityQuestion = s.child("securityQuestion").getValue(String::class.java).orEmpty(), securityAnswer = s.child("securityAnswer").getValue(String::class.java).orEmpty())
-        qrCodeValue = s.child("qrCode").getValue(String::class.java); memberId = s.child("memberId").getValue(String::class.java); membershipStart = s.child("membershipStart").getValue(String::class.java); membershipExpiry = s.child("membershipExpiry").getValue(String::class.java); paymentStatus = s.child("paymentStatus").getValue(String::class.java) ?: "pending"; paymentMethod = s.child("paymentMethod").getValue(String::class.java) ?: "mpesa"
+        qrCodeValue = s.child("qrCode").getValue(String::class.java); memberId = normalizedMemberId ?: s.child("memberId").getValue(String::class.java); membershipStart = s.child("membershipStart").getValue(String::class.java); membershipExpiry = s.child("membershipExpiry").getValue(String::class.java); paymentStatus = s.child("paymentStatus").getValue(String::class.java) ?: "pending"; paymentMethod = s.child("paymentMethod").getValue(String::class.java) ?: "mpesa"
         val planId = s.child("planId").getValue(String::class.java)
         selectedPlan = if (planId.isNullOrBlank()) null else MembershipPlanModel(planId, s.child("planLabel").getValue(String::class.java).orEmpty(), s.child("planPrice").getValue(Long::class.java)?.toInt() ?: 0, s.child("planDuration").getValue(Long::class.java)?.toInt() ?: 0)
     }
@@ -50,12 +81,14 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
     suspend fun refreshFromFirebase(): Boolean {
         val uid = auth.currentUser?.uid ?: return false
         return try {
-            val snapshot = database.reference.child("members").child(uid).get().await()
+            var snapshot = database.reference.child("members").child(uid).get().await()
             if (!snapshot.exists()) {
                 isLoaded = true
                 return false
             }
-            applySnapshot(snapshot)
+            val normalizedId = normalizeMemberData(snapshot)
+            snapshot = database.reference.child("members").child(uid).get().await()
+            applySnapshot(snapshot, normalizedId)
             persist()
             isLoaded = true
             true
@@ -69,52 +102,14 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
     suspend fun loadLocalMember(): Boolean {
         return try {
             val preferences = store.read()
-
-            fun get(key: String): String =
-                preferences.entries.firstOrNull { it.key.name == key }?.value.orEmpty()
-
+            fun get(key: String): String = preferences.entries.firstOrNull { it.key.name == key }?.value.orEmpty()
             val name = get("full_name")
-            if (name.isBlank()) {
-                isLoaded = true
-                return false
-            }
-
-            memberForm = MemberFormState(
-                name,
-                get("phone"),
-                get("email"),
-                get("dob"),
-                get("gender"),
-                get("emergency_contact"),
-                get("security_question"),
-                get("security_answer")
-            )
-
+            if (name.isBlank()) { isLoaded = true; return false }
+            memberForm = MemberFormState(name, get("phone"), get("email"), get("dob"), get("gender"), get("emergency_contact"), get("security_question"), get("security_answer"))
             val label = get("selected_plan_label")
-            selectedPlan = if (label.isBlank()) {
-                null
-            } else {
-                MembershipPlanModel(
-                    get("selected_plan_id"),
-                    label,
-                    get("selected_plan_price").toIntOrNull() ?: 0,
-                    get("selected_plan_duration").toIntOrNull() ?: 0
-                )
-            }
-
-            paymentMethod = get("payment_method").ifBlank { "mpesa" }
-            paymentStatus = get("payment_status").ifBlank { "pending" }
-            qrCodeValue = get("qr_code").ifBlank { null }
-            memberId = get("member_id").ifBlank { null }
-            membershipStart = get("membership_start").ifBlank { null }
-            membershipExpiry = get("membership_expiry").ifBlank { null }
-            isLoaded = true
-            true
-        } catch (e: Exception) {
-            profileSaveError = e.message ?: "Could not load saved member details."
-            isLoaded = true
-            false
-        }
+            selectedPlan = if (label.isBlank()) null else MembershipPlanModel(get("selected_plan_id"), label, get("selected_plan_price").toIntOrNull() ?: 0, get("selected_plan_duration").toIntOrNull() ?: 0)
+            paymentMethod = get("payment_method").ifBlank { "mpesa" }; paymentStatus = get("payment_status").ifBlank { "pending" }; qrCodeValue = get("qr_code").ifBlank { null }; memberId = get("member_id").ifBlank { null }; membershipStart = get("membership_start").ifBlank { null }; membershipExpiry = get("membership_expiry").ifBlank { null }; isLoaded = true; true
+        } catch (e: Exception) { profileSaveError = e.message ?: "Could not load saved member details."; isLoaded = true; false }
     }
 
     fun syncWithFirebase() { viewModelScope.launch { refreshFromFirebase() } }
@@ -129,7 +124,7 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { try { database.reference.child("members").child(uid).updateChildren(mapOf("fullName" to form.fullName.trim(), "phone" to form.phone.trim(), "email" to form.email.trim(), "dob" to form.dob, "gender" to form.gender, "emergencyContact" to form.emergencyContact.trim())).await(); refreshFromFirebase(); onResult(true, "Profile updated successfully.") } catch (e: Exception) { profileSaveError = e.message ?: "Could not save profile."; onResult(false, profileSaveError ?: "Could not save profile.") } }
     }
 
-    fun prepareMembership(plan: MembershipPlanModel) { val now = System.currentTimeMillis(); val calendar = Calendar.getInstance(); membershipStart = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now)); calendar.timeInMillis = now; calendar.add(Calendar.MONTH, plan.durationMonths); membershipExpiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time); memberId = "MSF-" + UUID.randomUUID().toString().take(6).uppercase(); persist() }
+    fun prepareMembership(plan: MembershipPlanModel) { val now = System.currentTimeMillis(); val calendar = Calendar.getInstance(); membershipStart = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now)); calendar.timeInMillis = now; calendar.add(Calendar.MONTH, plan.durationMonths); membershipExpiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time); memberId = "MSFC-" + UUID.randomUUID().toString().take(6).uppercase(); persist() }
     fun generateQrCode(forceNew: Boolean = false): String { val existing = qrCodeValue?.takeIf { it.isNotBlank() }; if (!forceNew && existing != null) return existing; val value = "GYM-" + UUID.randomUUID().toString(); qrCodeValue = value; persist(); return value }
     fun completePaymentLocally(plan: MembershipPlanModel) { paymentStatus = "paid"; persist() }
     fun ensureMembershipQr(): String? = qrCodeValue
