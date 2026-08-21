@@ -28,172 +28,84 @@ import com.qwerty.morningstarfitness.ui.components.GhostButton
 import com.qwerty.morningstarfitness.ui.components.Heading
 import com.qwerty.morningstarfitness.ui.components.PrimaryButton
 import com.qwerty.morningstarfitness.ui.components.SectionLabel
-import com.qwerty.morningstarfitness.ui.components.SelectableOptionRow
 import com.qwerty.morningstarfitness.ui.theme.PulseColors
-
-private data class PaymentOption(val id: String, val label: String)
-
-private val paymentOptions = listOf(
-    PaymentOption("mpesa", "M-Pesa (Demo Simulator)"),
-    PaymentOption("mastercard", "Mastercard (Demo Simulator)")
-)
 
 @Composable
 fun PaymentScreen(
     plan: MembershipPlanModel?,
-    paymentMethod: String,
+    phone: String,
     isProcessing: Boolean = false,
+    paymentStatus: String? = null,
+    receipt: String? = null,
     errorMessage: String? = null,
-    onMethodChange: (String) -> Unit,
     onBack: () -> Unit,
-    onSimulateSuccess: () -> Unit,
-    onSimulateCancel: () -> Unit
+    onPay: () -> Unit,
+    onCancel: () -> Unit
 ) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(PulseColors.Background)
-            .padding(20.dp),
+        modifier = Modifier.fillMaxSize().background(PulseColors.Background).padding(20.dp),
         contentAlignment = Alignment.TopCenter
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 420.dp)
-                .verticalScroll(rememberScrollState())
-                .background(PulseColors.Surface, RoundedCornerShape(20.dp))
-                .padding(24.dp)
+            modifier = Modifier.fillMaxWidth().widthIn(max = 420.dp).verticalScroll(rememberScrollState())
+                .background(PulseColors.Surface, RoundedCornerShape(20.dp)).padding(24.dp)
         ) {
             BrandMark()
-            Heading("Membership payment")
-
-            Spacer(modifier = Modifier.height(4.dp))
-
+            Heading("M-Pesa payment")
+            Spacer(Modifier.height(4.dp))
             Text(
-                text = "This is a presentation build. All payments are simulated for demonstration purposes.",
+                "Daraja Sandbox STK Push. No live money is charged. A payment request will be sent to the member's phone.",
                 color = PulseColors.TextMuted,
                 fontSize = 14.sp
             )
-
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "${plan?.label ?: "No plan"} plan",
-                    color = PulseColors.TextPrimary,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = plan?.let { "KSh ${it.priceKsh}" } ?: "—",
-                    color = PulseColors.Accent,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp
-                )
+                Text("${plan?.label ?: "No plan"} plan", color = PulseColors.TextPrimary, fontSize = 14.sp)
+                Text(plan?.let { "KSh ${it.priceKsh}" } ?: "—", color = PulseColors.Accent, fontFamily = FontFamily.Monospace)
             }
 
-            SectionLabel("Select method")
-            paymentOptions.forEach { option ->
-                SelectableOptionRow(
-                    label = option.label,
-                    selected = paymentMethod == option.id,
-                    onClick = { if (!isProcessing) onMethodChange(option.id) }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+            SectionLabel("Payment details")
+            Text("M-Pesa number", color = PulseColors.TextMuted, fontSize = 11.sp)
+            Text(phone.ifBlank { "No phone number" }, color = PulseColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(10.dp))
+            Text("Payment method", color = PulseColors.TextMuted, fontSize = 11.sp)
+            Text("M-Pesa STK Push", color = PulseColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+
+            Spacer(Modifier.height(18.dp))
+            Column(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(16.dp)) {
+                Text("WAIT FOR THE STK PROMPT", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(Modifier.height(6.dp))
+                Text("Enter your M-Pesa PIN on the phone when the sandbox prompt arrives. The app will only continue after the Daraja callback confirms payment.", color = PulseColors.TextPrimary, fontSize = 13.sp)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // DEMO PAYMENT BOX
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp))
-                    .padding(16.dp)
-            ) {
-                if (paymentMethod == "mpesa") {
-                    Text(
-                        text = "M-PESA SANDBOX — DEMO",
-                        color = PulseColors.Accent,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "PayBill: 123456", color = PulseColors.TextPrimary, fontSize = 13.sp)
-                    Text(text = "Account: MORNINGSTAR-DEMO", color = PulseColors.TextPrimary, fontSize = 13.sp)
-                    Text(
-                        text = "Amount: KSh ${plan?.priceKsh ?: 0}",
-                        color = PulseColors.TextPrimary,
-                        fontSize = 13.sp
-                    )
-                } else {
-                    Text(
-                        text = "MASTERCARD — DEMO",
-                        color = PulseColors.Accent,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "Card: **** **** **** 4242", color = PulseColors.TextPrimary, fontSize = 13.sp)
-                    Text(text = "Expiry: 12/30", color = PulseColors.TextPrimary, fontSize = 13.sp)
-                    Text(text = "CVV: ***", color = PulseColors.TextPrimary, fontSize = 13.sp)
-                    Text(
-                        text = "Amount: KSh ${plan?.priceKsh ?: 0}",
-                        color = PulseColors.TextPrimary,
-                        fontSize = 13.sp
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "No real money is transferred in this presentation build.",
-                    color = PulseColors.TextMuted,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
-                )
+            if (paymentStatus != null) {
+                Spacer(Modifier.height(12.dp))
+                Text("Payment status: ${paymentStatus.uppercase()}", color = if (paymentStatus == "paid") PulseColors.AccentLime else PulseColors.TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
-
+            if (receipt != null) {
+                Spacer(Modifier.height(6.dp))
+                Text("M-Pesa receipt: $receipt", color = PulseColors.TextPrimary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            }
             if (errorMessage != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = errorMessage,
-                    color = PulseColors.Error,
-                    fontSize = 12.sp,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Spacer(Modifier.height(12.dp))
+                Text(errorMessage, color = PulseColors.Error, fontSize = 12.sp)
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
+            Spacer(Modifier.height(24.dp))
             PrimaryButton(
-                text = if (isProcessing) "Processing..." else "SIMULATE PAYMENT",
-                onClick = onSimulateSuccess,
-                enabled = plan != null && !isProcessing,
+                text = if (isProcessing) "Waiting for M-Pesa..." else "PAY WITH M-PESA",
+                onClick = onPay,
+                enabled = plan != null && phone.isNotBlank() && !isProcessing,
                 modifier = Modifier.fillMaxWidth()
             )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            GhostButton(
-                text = "CANCEL PAYMENT",
-                onClick = onSimulateCancel,
-                enabled = !isProcessing,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            GhostButton(
-                text = "Back",
-                onClick = onBack,
-                enabled = !isProcessing,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Spacer(Modifier.height(10.dp))
+            GhostButton(text = "CANCEL", onClick = onCancel, enabled = !isProcessing, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            GhostButton(text = "Back", onClick = onBack, enabled = !isProcessing, modifier = Modifier.fillMaxWidth())
         }
     }
 }
