@@ -70,25 +70,12 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         return try {
             var snapshot = database.reference.child("members").child(uid).get().await()
             if (!snapshot.exists()) {
-                store.clear()
-                memberForm = null
-                memberId = null
-                qrCodeValue = null
-                selectedPlan = null
-                isLoaded = true
-                return false
+                store.clear(); memberForm = null; memberId = null; qrCodeValue = null; selectedPlan = null; isLoaded = true; return false
             }
             val normalizedId = migrateExistingMember(snapshot)
             snapshot = database.reference.child("members").child(uid).get().await()
-            applySnapshot(snapshot, normalizedId)
-            persist()
-            isLoaded = true
-            true
-        } catch (e: Exception) {
-            profileSaveError = e.message ?: "Could not refresh member details."
-            isLoaded = true
-            false
-        }
+            applySnapshot(snapshot, normalizedId); persist(); isLoaded = true; true
+        } catch (e: Exception) { profileSaveError = e.message ?: "Could not refresh member details."; isLoaded = true; false }
     }
 
     suspend fun loadLocalMember(): Boolean {
@@ -119,7 +106,7 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
     fun ensureMembershipQr(): String? = qrCodeValue
     fun getMembershipStatus(): String { if (selectedPlan == null) return "No Plan"; val expiry = membershipExpiry ?: return "Pending"; return if (isExpired(expiry)) "Expired" else "Active" }
     private fun isExpired(value: String): Boolean = try { val expiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(value) ?: return true; val today = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.time; expiry.before(today) } catch (_: Exception) { true }
-    fun renewMembership(plan: MembershipPlanModel, onComplete: (Boolean) -> Unit) { val uid = auth.currentUser?.uid ?: run { renewalError = "Not logged in"; onComplete(false); return }; renewalError = null; isRenewing = true; viewModelScope.launch { try { val memberRef = database.reference.child("members").child(uid); val snapshot = memberRef.get().await(); val existingExpiry = snapshot.child("membershipExpiry").getValue(String::class.java); val calendar = Calendar.getInstance(); val today = Date(); val existing = existingExpiry?.let { runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it) }.getOrNull() }; val renewalBase = if (existing != null && existing.after(today)) existing else today; calendar.time = renewalBase; calendar.add(Calendar.MONTH, plan.durationMonths); val newStart = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(renewalBase); val newExpiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time); val paymentId = "RENEW-" + UUID.randomUUID().toString().take(8).uppercase(); val now = System.currentTimeMillis(); memberRef.updateChildren(mapOf("planId" to plan.id, "planLabel" to plan.label, "planPrice" to plan.priceKsh, "planDuration" to plan.durationMonths, "membershipStart" to newStart, "membershipExpiry" to newExpiry, "paymentStatus" to "paid", "lastPaymentId" to paymentId, "lastPaymentAt" to now)).await(); memberRef.child("payments").child(paymentId).setValue(mapOf("paymentId" to paymentId, "type" to "membership_renewal", "planId" to plan.id, "planLabel" to plan.label, "amountKsh" to plan.priceKsh, "status" to "paid", "method" to "demo_mpesa", "paidAt" to now, "membershipStart" to newStart, "membershipExpiry" to newExpiry)).await(); refreshFromFirebase(); onComplete(true) } catch (e: Exception) { renewalError = e.message ?: "Renewal failed"; onComplete(false) } finally { isRenewing = false } } }
+    fun renewMembership(plan: MembershipPlanModel, onComplete: (Boolean) -> Unit) { renewalError = "Use the M-Pesa payment screen to renew membership."; onComplete(false) }
     private fun persist() { val member = memberForm ?: return; viewModelScope.launch { store.saveMember(auth.currentUser?.uid, member.fullName, member.phone, member.email, member.dob, member.gender, member.emergencyContact, member.securityQuestion, member.securityAnswer, selectedPlan?.id, selectedPlan?.label, selectedPlan?.priceKsh, selectedPlan?.durationMonths, paymentMethod, paymentStatus, qrCodeValue, memberId, membershipStart, membershipExpiry) } }
     fun clearLocalData() { viewModelScope.launch { store.clear() }; memberForm = null; selectedPlan = null; memberId = null; qrCodeValue = null; membershipStart = null; membershipExpiry = null; paymentMethod = "mpesa"; paymentStatus = "pending"; renewalError = null; profileSaveError = null; isLoaded = true }
     fun verifySecurityAnswer(answer: String): Boolean { val form = memberForm ?: return false; return com.qwerty.morningstarfitness.security.hashSecurityAnswer(answer) == form.securityAnswer }
