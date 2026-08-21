@@ -134,17 +134,65 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
         composable(ROUTE_PLAN) { PlanScreen(onBack = { navController.popBackStack() }, onContinue = { plan -> memberViewModel.updateSelectedPlan(plan); navController.navigate(ROUTE_PAYMENT) }) }
         composable(ROUTE_PAYMENT) {
             val scope = rememberCoroutineScope()
-            PaymentScreen(plan = memberViewModel.selectedPlan, paymentMethod = memberViewModel.paymentMethod, isProcessing = paymentViewModel.isProcessing || authViewModel.isProcessing, errorMessage = paymentViewModel.errorMessage ?: authViewModel.registrationError, onMethodChange = { memberViewModel.updatePaymentMethod(it) }, onBack = { navController.popBackStack() }, onSimulateSuccess = {
-                val plan = memberViewModel.selectedPlan ?: return@PaymentScreen
-                paymentViewModel.simulateSuccessfulPayment(amount = plan.priceKsh, purpose = "membership_registration", referenceId = "REG-${UUID.randomUUID()}") { success -> if (success) scope.launch { val form = memberViewModel.memberForm ?: return@launch; memberViewModel.prepareMembership(plan); val qr = memberViewModel.generateQrCode(forceNew = true); if (authViewModel.createUser(form, plan, qr, memberViewModel.memberId, memberViewModel.membershipStart, memberViewModel.membershipExpiry)) { memberViewModel.completePaymentLocally(plan); paymentHistoryViewModel.refresh(); navController.navigate(ROUTE_SUCCESS) } } }
-            }, onSimulateCancel = { paymentViewModel.simulateCancelledPayment { } })
+            val form = memberViewModel.memberForm
+            PaymentScreen(
+                plan = memberViewModel.selectedPlan,
+                phone = form?.phone.orEmpty(),
+                isProcessing = paymentViewModel.isProcessing || authViewModel.isProcessing,
+                paymentStatus = paymentViewModel.paymentStatus,
+                receipt = paymentViewModel.mpesaReceipt,
+                errorMessage = paymentViewModel.errorMessage ?: authViewModel.registrationError,
+                onBack = { navController.popBackStack() },
+                onPay = {
+                    val plan = memberViewModel.selectedPlan ?: return@PaymentScreen
+                    val paymentReference = "REG-${UUID.randomUUID().toString().replace("-", "").take(8).uppercase()}"
+                    paymentViewModel.startStkPayment(
+                        phone = form?.phone.orEmpty(),
+                        amount = plan.priceKsh,
+                        purpose = "membership_registration",
+                        referenceId = paymentReference
+                    ) { success ->
+                        if (success) scope.launch {
+                            val currentForm = memberViewModel.memberForm ?: return@launch
+                            memberViewModel.prepareMembership(plan)
+                            val qr = memberViewModel.generateQrCode(forceNew = true)
+                            if (authViewModel.createUser(currentForm, plan, qr, memberViewModel.memberId, memberViewModel.membershipStart, memberViewModel.membershipExpiry)) {
+                                memberViewModel.completePaymentLocally(plan)
+                                paymentHistoryViewModel.refresh()
+                                navController.navigate(ROUTE_SUCCESS)
+                            }
+                        }
+                    }
+                },
+                onCancel = { paymentViewModel.reset() }
+            )
         }
         composable(ROUTE_RENEW) { PlanScreen(onBack = { navController.popBackStack() }, onContinue = { plan -> memberViewModel.updateSelectedPlan(plan); navController.navigate(ROUTE_RENEW_PAYMENT) }) }
         composable(ROUTE_RENEW_PAYMENT) {
-            PaymentScreen(plan = memberViewModel.selectedPlan, paymentMethod = memberViewModel.paymentMethod, isProcessing = paymentViewModel.isProcessing || memberViewModel.isRenewing, errorMessage = paymentViewModel.errorMessage ?: memberViewModel.renewalError, onMethodChange = { memberViewModel.updatePaymentMethod(it) }, onBack = { navController.popBackStack() }, onSimulateSuccess = {
-                val plan = memberViewModel.selectedPlan ?: return@PaymentScreen
-                paymentViewModel.simulateSuccessfulPayment(amount = plan.priceKsh, purpose = "membership_renewal", referenceId = "RENEW-${UUID.randomUUID()}", planId = plan.id, planLabel = plan.label, planDuration = plan.durationMonths) { success -> if (success) memberViewModel.renewMembership(plan) { renewed -> if (renewed) { paymentHistoryViewModel.refresh(); navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_HOME) { inclusive = true } } } } }
-            }, onSimulateCancel = { paymentViewModel.simulateCancelledPayment { } })
+            PaymentScreen(
+                plan = memberViewModel.selectedPlan,
+                phone = memberViewModel.memberForm?.phone.orEmpty(),
+                isProcessing = paymentViewModel.isProcessing || memberViewModel.isRenewing,
+                paymentStatus = paymentViewModel.paymentStatus,
+                receipt = paymentViewModel.mpesaReceipt,
+                errorMessage = paymentViewModel.errorMessage ?: memberViewModel.renewalError,
+                onBack = { navController.popBackStack() },
+                onPay = {
+                    val plan = memberViewModel.selectedPlan ?: return@PaymentScreen
+                    paymentViewModel.startStkPayment(
+                        phone = memberViewModel.memberForm?.phone.orEmpty(),
+                        amount = plan.priceKsh,
+                        purpose = "membership_renewal",
+                        referenceId = "RENEW-${UUID.randomUUID().toString().replace("-", "").take(8).uppercase()}",
+                        planId = plan.id,
+                        planLabel = plan.label,
+                        planDuration = plan.durationMonths
+                    ) { success ->
+                        if (success) memberViewModel.refreshFromFirebase { paymentViewModel.reset(); paymentHistoryViewModel.refresh(); navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_HOME) { inclusive = true } } }
+                    }
+                },
+                onCancel = { paymentViewModel.reset() }
+            )
         }
         composable(ROUTE_SUCCESS) { SuccessScreen(firstName = firstName(), plan = memberViewModel.selectedPlan, qrCodeValue = memberViewModel.qrCodeValue ?: "", onContinue = { navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_ENTRY) { inclusive = true } } }) }
         composable(ROUTE_HOME) {
