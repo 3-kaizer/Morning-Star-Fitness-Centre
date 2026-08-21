@@ -9,7 +9,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import com.qwerty.morningstarfitness.models.OrderItem
 import com.qwerty.morningstarfitness.models.OrderModel
-import com.qwerty.morningstarfitness.models.ProductModel
 import com.qwerty.morningstarfitness.models.defaultProducts
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -25,8 +24,6 @@ class ShopViewModel : ViewModel() {
     var isProcessingOrder by mutableStateOf(false); private set
     var lastOrderSuccess by mutableStateOf(false); private set
     var orderError by mutableStateOf<String?>(null); private set
-
-    // Gym-shop orders are pickup-only at the front desk.
     var fulfilmentMethod by mutableStateOf("pickup")
     var currentOrderId by mutableStateOf<String?>(null)
 
@@ -40,10 +37,7 @@ class ShopViewModel : ViewModel() {
     }
 
     fun initiateCheckout() {
-        if (cartItems.isEmpty()) {
-            orderError = "Your cart is empty."
-            return
-        }
+        if (cartItems.isEmpty()) { orderError = "Your cart is empty."; return }
         currentOrderId = generateOrderId()
         fulfilmentMethod = "pickup"
         orderError = null
@@ -57,92 +51,50 @@ class ShopViewModel : ViewModel() {
     }
 
     fun createPendingOrder(onComplete: (Boolean, String?) -> Unit) {
-        val uid = auth.currentUser?.uid ?: run {
-            orderError = "Please log in before placing an order."
-            onComplete(false, null)
-            return
-        }
-        if (cartItems.isEmpty()) {
-            orderError = "Your cart is empty."
-            onComplete(false, null)
-            return
-        }
+        val uid = auth.currentUser?.uid ?: run { orderError = "Please log in before placing an order."; onComplete(false, null); return }
+        if (cartItems.isEmpty()) { orderError = "Your cart is empty."; onComplete(false, null); return }
         if (isProcessingOrder) return
         isProcessingOrder = true
         orderError = null
-
         viewModelScope.launch {
             try {
-                // Member data lives only under /members/{firebaseUid}.
-                // Orders live only under /orders/{orderId}. This keeps the Firebase
-                // console clean and makes the two collections easy to demonstrate.
                 val memberSnapshot = database.reference.child("members").child(uid).get().await()
-                if (!memberSnapshot.exists()) throw Exception("Member profile not found.")
-
-                val memberName = memberSnapshot.child("fullName").getValue(String::class.java) ?: "Unknown Member"
+                if (!memberSnapshot.exists()) throw Exception("Member profile not found. Please sign in again.")
+                val memberName = memberSnapshot.child("fullName").getValue(String::class.java) ?: throw Exception("Member name is missing.")
                 val memberPhone = memberSnapshot.child("phone").getValue(String::class.java) ?: ""
                 val memberEmail = memberSnapshot.child("email").getValue(String::class.java) ?: ""
-                val memberIdStr = memberSnapshot.child("memberId").getValue(String::class.java) ?: ""
-
+                val memberIdStr = memberSnapshot.child("memberId").getValue(String::class.java) ?: throw Exception("Member ID is missing.")
                 val items = cartItems.mapNotNull { (id, qty) ->
                     if (qty <= 0) return@mapNotNull null
                     val product = products.find { it.id == id } ?: return@mapNotNull null
                     OrderItem(id, product.name, product.priceKsh, qty)
                 }
                 if (items.isEmpty()) throw IllegalStateException("Your cart contains no valid products.")
-
                 val total = items.sumOf { it.priceKsh * it.quantity }
                 val orderId = currentOrderId ?: generateOrderId()
                 val now = System.currentTimeMillis()
-                val order = OrderModel(
-                    orderId = orderId,
-                    userId = uid,
-                    memberId = memberIdStr,
-                    customerName = memberName,
-                    customerPhone = memberPhone,
-                    customerEmail = memberEmail,
-                    items = items,
-                    totalAmount = total,
-                    status = "pending",
-                    paymentStatus = "unpaid",
-                    paymentMethod = "demo_mpesa",
-                    fulfilmentMethod = "pickup",
-                    orderedAt = Date(now),
-                    demoReceipt = ""
-                )
-
                 val orderMap = mapOf(
-                    "orderId" to order.orderId,
-                    "memberId" to order.memberId,
-                    "userId" to order.userId,
-                    "customerName" to order.customerName,
-                    "customerPhone" to order.customerPhone,
-                    "customerEmail" to order.customerEmail,
-                    "items" to items.map { mapOf(
-                        "productId" to it.productId,
-                        "productName" to it.productName,
-                        "priceKsh" to it.priceKsh,
-                        "quantity" to it.quantity
-                    ) },
-                    "totalAmount" to order.totalAmount,
-                    "status" to order.status,
-                    "paymentStatus" to order.paymentStatus,
-                    "paymentMethod" to order.paymentMethod,
+                    "orderId" to orderId,
+                    "memberId" to memberIdStr,
+                    "userId" to uid,
+                    "customerName" to memberName,
+                    "customerPhone" to memberPhone,
+                    "customerEmail" to memberEmail,
+                    "items" to items.map { mapOf("productId" to it.productId, "productName" to it.productName, "priceKsh" to it.priceKsh, "quantity" to it.quantity) },
+                    "totalAmount" to total,
+                    "status" to "pending",
+                    "paymentStatus" to "unpaid",
+                    "paymentMethod" to "demo_mpesa",
                     "fulfilmentMethod" to "pickup",
                     "pickupLocation" to "Morning Star Fitness Centre Front Desk",
                     "orderedAt" to now
                 )
-
-                // Single source of truth for shop orders: /orders/{orderId}.
-                // Member records remain separate under /members/{uid}.
                 database.reference.child("orders").child(orderId).setValue(orderMap).await()
                 onComplete(true, orderId)
             } catch (e: Exception) {
-                orderError = e.message ?: "Could not initiate the order."
+                orderError = e.message ?: "Could not place the order."
                 onComplete(false, null)
-            } finally {
-                isProcessingOrder = false
-            }
+            } finally { isProcessingOrder = false }
         }
     }
 
@@ -154,9 +106,12 @@ class ShopViewModel : ViewModel() {
     }
 
     suspend fun fetchOrder(orderId: String): OrderModel? {
+        val uid = auth.currentUser?.uid ?: return null
         return try {
             val snapshot = database.reference.child("orders").child(orderId).get().await()
             if (!snapshot.exists()) return null
+            val ownerUid = snapshot.child("userId").getValue(String::class.java) ?: return null
+            if (ownerUid != uid) return null
             val items = snapshot.child("items").children.map { item ->
                 OrderItem(
                     productId = item.child("productId").getValue(String::class.java) ?: "",
@@ -167,7 +122,7 @@ class ShopViewModel : ViewModel() {
             }
             OrderModel(
                 orderId = snapshot.child("orderId").getValue(String::class.java) ?: "",
-                userId = snapshot.child("userId").getValue(String::class.java) ?: "",
+                userId = ownerUid,
                 memberId = snapshot.child("memberId").getValue(String::class.java) ?: "",
                 customerName = snapshot.child("customerName").getValue(String::class.java) ?: "",
                 customerPhone = snapshot.child("customerPhone").getValue(String::class.java) ?: "",
@@ -181,9 +136,7 @@ class ShopViewModel : ViewModel() {
                 orderedAt = Date(snapshot.child("orderedAt").getValue(Long::class.java) ?: System.currentTimeMillis()),
                 paidAt = snapshot.child("paidAt").getValue(Long::class.java)
             )
-        } catch (_: Exception) {
-            null
-        }
+        } catch (_: Exception) { null }
     }
 
     fun resetOrderState() {
@@ -193,9 +146,6 @@ class ShopViewModel : ViewModel() {
         fulfilmentMethod = "pickup"
     }
 
-    fun getCartTotal(): Int = cartItems.entries.sumOf { (id, qty) ->
-        (products.find { it.id == id }?.priceKsh ?: 0) * qty
-    }
-
+    fun getCartTotal(): Int = cartItems.entries.sumOf { (id, qty) -> (products.find { it.id == id }?.priceKsh ?: 0) * qty }
     fun getItemCount(): Int = cartItems.values.sum()
 }
