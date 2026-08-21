@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -62,9 +61,7 @@ fun ShopScreen(shopViewModel: ShopViewModel, memberViewModel: MemberViewModel, p
 
     Box(Modifier.fillMaxSize().background(PulseColors.Background).padding(20.dp), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.fillMaxWidth().widthIn(max = 420.dp).verticalScroll(rememberScrollState()).background(PulseColors.Surface, RoundedCornerShape(20.dp)).padding(24.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { if (showingCheckout) showingCheckout = false else onBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = PulseColors.TextPrimary) }
-            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { if (showingCheckout) showingCheckout = false else onBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = PulseColors.TextPrimary) } }
             BrandMark()
             Heading(if (showingCheckout) "Checkout" else "Gym shop")
             Spacer(Modifier.height(4.dp))
@@ -116,22 +113,27 @@ fun CheckoutContent(shopViewModel: ShopViewModel, memberForm: com.qwerty.morning
         Text("PAYMENT", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseColors.AccentLime)
         Spacer(Modifier.height(12.dp))
         Column(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(16.dp)) {
-            Text("M-PESA SANDBOX — DEMO", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text("PayBill: 123456", color = PulseColors.TextPrimary, fontSize = 13.sp)
-            Text("Account: MORNINGSTAR-DEMO", color = PulseColors.TextPrimary, fontSize = 13.sp)
+            Text("M-PESA DARaja SANDBOX", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Text("Amount: KSh $cartTotal", color = PulseColors.TextPrimary, fontSize = 13.sp)
+            Text("Number: ${memberForm?.phone ?: "Not available"}", color = PulseColors.TextPrimary, fontSize = 13.sp)
             Spacer(Modifier.height(8.dp))
-            Text("No real money is transferred in this presentation build.", color = PulseColors.TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            Text("An STK prompt will be sent to this number. Enter the M-Pesa PIN on the phone.", color = PulseColors.TextMuted, fontSize = 11.sp)
         }
+        if (paymentViewModel.paymentStatus != null) { Spacer(Modifier.height(10.dp)); Text("Payment: ${paymentViewModel.paymentStatus!!.uppercase()}", color = PulseColors.TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+        if (paymentViewModel.mpesaReceipt != null) { Spacer(Modifier.height(6.dp)); Text("Receipt: ${paymentViewModel.mpesaReceipt}", color = PulseColors.TextPrimary, fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
         if (paymentViewModel.errorMessage != null) { Spacer(Modifier.height(12.dp)); Text(paymentViewModel.errorMessage!!, color = PulseColors.Error, fontSize = 12.sp) }
         Spacer(Modifier.height(24.dp))
-        PrimaryButton(text = if (paymentViewModel.isProcessing || shopViewModel.isProcessingOrder) "Processing..." else "SIMULATE PAYMENT", onClick = {
+        PrimaryButton(text = if (paymentViewModel.isProcessing || shopViewModel.isProcessingOrder) "Waiting for M-Pesa..." else "PAY WITH M-PESA", onClick = {
             shopViewModel.createPendingOrder { success, orderId ->
-                if (success && orderId != null) paymentViewModel.simulateSuccessfulPayment(amount = cartTotal, purpose = "shop_order", referenceId = orderId) { paid -> if (paid) onOrderSuccess(orderId) }
+                if (success && orderId != null) {
+                    paymentViewModel.startStkPayment(phone = memberForm?.phone.orEmpty(), amount = cartTotal, purpose = "shop_order", referenceId = orderId) { paid ->
+                        if (paid) onOrderSuccess(orderId)
+                    }
+                }
             }
-        }, enabled = !(paymentViewModel.isProcessing || shopViewModel.isProcessingOrder))
+        }, enabled = !(paymentViewModel.isProcessing || shopViewModel.isProcessingOrder) && memberForm?.phone?.isNotBlank() == true)
         Spacer(Modifier.height(8.dp))
-        GhostButton(text = "CANCEL PAYMENT", onClick = { paymentViewModel.simulateCancelledPayment { onCancel() } }, enabled = !(paymentViewModel.isProcessing || shopViewModel.isProcessingOrder))
+        GhostButton(text = "CANCEL", onClick = { onCancel() }, enabled = !(paymentViewModel.isProcessing || shopViewModel.isProcessingOrder))
     }
 }
 
