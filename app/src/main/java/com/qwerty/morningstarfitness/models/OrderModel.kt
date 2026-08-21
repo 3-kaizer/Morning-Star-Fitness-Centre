@@ -21,9 +21,8 @@ data class OrderModel(
     val status: String = "pending",
     val paymentStatus: String = "unpaid",
     val paymentMethod: String = "demo_mpesa",
+    /** All gym-shop orders are collected at the front desk. */
     val fulfilmentMethod: String = "pickup",
-    val deliveryLocation: String = "",
-    val deliveryAddress: String = "",
     val orderedAt: Date = Date(),
     val paidAt: Long? = null,
     val demoReceipt: String = ""
