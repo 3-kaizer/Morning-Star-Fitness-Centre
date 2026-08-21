@@ -58,7 +58,6 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             if (!memberLoaded) {
                 authViewModel.signOut()
                 memberViewModel.clearLocalData()
-                Toast.makeText(LocalContext.current, "Member profile not found. Please register again.", Toast.LENGTH_LONG).show()
                 navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
                 return@launch
             }
