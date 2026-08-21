@@ -142,8 +142,50 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
         }
         composable(ROUTE_SUCCESS) { SuccessScreen(firstName = firstName(), plan = memberViewModel.selectedPlan, qrCodeValue = memberViewModel.qrCodeValue ?: "", onContinue = { navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_ENTRY) { inclusive = true } } }) }
         composable(ROUTE_HOME) {
-            LaunchedEffect(Unit) { memberViewModel.syncWithFirebase(); attendanceViewModel.fetchAttendanceHistory(); paymentHistoryViewModel.refresh() }
-            HomeScreen(firstName = firstName(), plan = memberViewModel.selectedPlan, onLogout = { authViewModel.signOut(); memberViewModel.clearLocalData(); attendanceViewModel.clearHistory(); navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_HOME) { inclusive = true } } }, onOpenShop = { navController.navigate(ROUTE_SHOP) }, onOpenProfile = { navController.navigate(ROUTE_PROFILE) }, onOpenAttendance = { navController.navigate(ROUTE_ATTENDANCE) }, onOpenTrainers = { navController.navigate(ROUTE_TRAINERS) }, onOpenGymStatus = { navController.navigate(ROUTE_GYM_STATUS) }, onOpenNotifications = { navController.navigate(ROUTE_NOTIFICATIONS) }, onOpenPaymentHistory = { navController.navigate(ROUTE_PAYMENT_HISTORY) }, onOpenMemberCard = { navController.navigate(ROUTE_MEMBER_CARD) }, onScanEntry = { navController.navigate(ROUTE_SCAN_ENTRY) }, onGetStarted = { navController.navigate(ROUTE_REGISTRATION) }, onRenewMembership = { navController.navigate(ROUTE_RENEW) }, membershipStart = memberViewModel.membershipStart, membershipExpiry = memberViewModel.membershipExpiry, attendanceCount = attendanceViewModel.attendanceHistory.size, trainerCount = 4, notificationCount = 2, isLoaded = memberViewModel.isLoaded)
+            val scope = rememberCoroutineScope()
+            var isRefreshing by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) {
+                memberViewModel.syncWithFirebase()
+                attendanceViewModel.fetchAttendanceHistory()
+                paymentHistoryViewModel.refresh()
+            }
+            HomeScreen(
+                firstName = firstName(),
+                plan = memberViewModel.selectedPlan,
+                onLogout = { authViewModel.signOut(); memberViewModel.clearLocalData(); attendanceViewModel.clearHistory(); navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_HOME) { inclusive = true } } },
+                onOpenShop = { navController.navigate(ROUTE_SHOP) },
+                onOpenProfile = { navController.navigate(ROUTE_PROFILE) },
+                onOpenAttendance = { navController.navigate(ROUTE_ATTENDANCE) },
+                onOpenTrainers = { navController.navigate(ROUTE_TRAINERS) },
+                onOpenGymStatus = { navController.navigate(ROUTE_GYM_STATUS) },
+                onOpenNotifications = { navController.navigate(ROUTE_NOTIFICATIONS) },
+                onOpenPaymentHistory = { navController.navigate(ROUTE_PAYMENT_HISTORY) },
+                onOpenMemberCard = { navController.navigate(ROUTE_MEMBER_CARD) },
+                onScanEntry = { navController.navigate(ROUTE_SCAN_ENTRY) },
+                onGetStarted = { navController.navigate(ROUTE_REGISTRATION) },
+                onRenewMembership = { navController.navigate(ROUTE_RENEW) },
+                membershipStart = memberViewModel.membershipStart,
+                membershipExpiry = memberViewModel.membershipExpiry,
+                attendanceCount = attendanceViewModel.attendanceHistory.size,
+                trainerCount = 4,
+                notificationCount = 2,
+                isLoaded = memberViewModel.isLoaded,
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    if (!isRefreshing) {
+                        scope.launch {
+                            isRefreshing = true
+                            try {
+                                memberViewModel.syncWithFirebase()
+                                attendanceViewModel.fetchAttendanceHistory()
+                                paymentHistoryViewModel.refresh()
+                            } finally {
+                                isRefreshing = false
+                            }
+                        }
+                    }
+                }
+            )
         }
         composable(ROUTE_ATTENDANCE) { AttendanceScreen(entries = attendanceViewModel.attendanceHistory, onBack = { navController.popBackStack() }) }
         composable(ROUTE_TRAINERS) { TrainersScreen(onBack = { navController.popBackStack() }, onTrainerSelected = { trainer: TrainerSummary -> navController.navigate(ROUTE_TRAINER_DETAIL + "?name=${trainer.name}&specialty=${trainer.specialty}&schedule=${trainer.schedule}") }) }
