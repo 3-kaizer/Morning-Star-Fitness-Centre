@@ -38,10 +38,18 @@ fun PaymentScreen(
     paymentStatus: String? = null,
     receipt: String? = null,
     errorMessage: String? = null,
+    isPresentationSandbox: Boolean = false,
     onBack: () -> Unit,
     onPay: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val modeTitle = if (isPresentationSandbox) "PRESENTATION SANDBOX" else "DARaja SANDBOX"
+    val modeText = if (isPresentationSandbox) {
+        "Presentation-safe simulation. No M-Pesa transaction or PIN is sent. The app records a clearly marked sandbox demo result in Firebase."
+    } else {
+        "Daraja Sandbox STK Push. A payment request is sent to the configured test backend and the app waits for the Daraja callback before continuing."
+    }
+
     Box(
         modifier = Modifier.fillMaxSize().background(PulseColors.Background).padding(20.dp),
         contentAlignment = Alignment.TopCenter
@@ -53,11 +61,7 @@ fun PaymentScreen(
             BrandMark()
             Heading("M-Pesa payment")
             Spacer(Modifier.height(4.dp))
-            Text(
-                "Daraja Sandbox STK Push. No live money is charged. A payment request will be sent to the member's phone.",
-                color = PulseColors.TextMuted,
-                fontSize = 14.sp
-            )
+            Text(modeText, color = PulseColors.TextMuted, fontSize = 14.sp)
             Spacer(Modifier.height(16.dp))
 
             Row(
@@ -69,17 +73,25 @@ fun PaymentScreen(
             }
 
             SectionLabel("Payment details")
+            Text("Mode", color = PulseColors.TextMuted, fontSize = 11.sp)
+            Text(modeTitle, color = PulseColors.Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
             Text("M-Pesa number", color = PulseColors.TextMuted, fontSize = 11.sp)
             Text(phone.ifBlank { "No phone number" }, color = PulseColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(10.dp))
             Text("Payment method", color = PulseColors.TextMuted, fontSize = 11.sp)
-            Text("M-Pesa STK Push", color = PulseColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text("M-Pesa", color = PulseColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
 
             Spacer(Modifier.height(18.dp))
             Column(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(16.dp)) {
-                Text("WAIT FOR THE STK PROMPT", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(if (isPresentationSandbox) "SAFE PRESENTATION DEMO" else "WAIT FOR THE STK PROMPT", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Spacer(Modifier.height(6.dp))
-                Text("Enter your M-Pesa PIN on the phone when the sandbox prompt arrives. The app will only continue after the Daraja callback confirms payment.", color = PulseColors.TextPrimary, fontSize = 13.sp)
+                Text(
+                    if (isPresentationSandbox) "Press the button to demonstrate the payment-confirmed path without sending money or requesting a PIN."
+                    else "Enter your M-Pesa PIN only when using the configured Daraja Sandbox test flow. Do not use a personal live transaction for the presentation.",
+                    color = PulseColors.TextPrimary,
+                    fontSize = 13.sp
+                )
             }
 
             if (paymentStatus != null) {
@@ -88,7 +100,7 @@ fun PaymentScreen(
             }
             if (receipt != null) {
                 Spacer(Modifier.height(6.dp))
-                Text("M-Pesa receipt: $receipt", color = PulseColors.TextPrimary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                Text("Receipt: $receipt", color = PulseColors.TextPrimary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             }
             if (errorMessage != null) {
                 Spacer(Modifier.height(12.dp))
@@ -97,7 +109,7 @@ fun PaymentScreen(
 
             Spacer(Modifier.height(24.dp))
             PrimaryButton(
-                text = if (isProcessing) "Waiting for M-Pesa..." else "PAY WITH M-PESA",
+                text = if (isProcessing) "Processing..." else if (isPresentationSandbox) "RUN SANDBOX PAYMENT" else "PAY WITH M-PESA",
                 onClick = onPay,
                 enabled = plan != null && phone.isNotBlank() && !isProcessing,
                 modifier = Modifier.fillMaxWidth()
