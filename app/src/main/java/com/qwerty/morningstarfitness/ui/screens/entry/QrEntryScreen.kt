@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,15 +24,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qwerty.morningstarfitness.ui.components.GhostButton
 import com.qwerty.morningstarfitness.ui.components.Heading
-import com.qwerty.morningstarfitness.ui.components.PrimaryButton
 import com.qwerty.morningstarfitness.ui.components.QrCodeDisplay
 import com.qwerty.morningstarfitness.ui.theme.PulseColors
 
 @Composable
 fun QrEntryScreen(
     qrCodeValue: String?, fullName: String?, memberId: String?, status: String, membershipExpiry: String?,
-    isLoading: Boolean = false, isRecording: Boolean, checkInMessage: String?, onBack: () -> Unit,
-    onRecordCheckIn: () -> Unit, onPasswordEntry: () -> Unit
+    isLoading: Boolean = false, checkInMessage: String? = null, onBack: () -> Unit,
+    onPasswordEntry: () -> Unit
 ) {
     Box(Modifier.fillMaxSize().background(PulseColors.Background).padding(horizontal = 18.dp, vertical = 16.dp), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.fillMaxWidth().widthIn(max = 460.dp).verticalScroll(rememberScrollState())) {
@@ -41,8 +39,8 @@ fun QrEntryScreen(
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = PulseColors.TextPrimary) }
                 Column(Modifier.weight(1f).padding(start = 4.dp)) {
                     Text("GYM ENTRY", color = PulseColors.Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp)
-                    Heading("Check in")
-                    Text("Show your member QR at the front desk.", color = PulseColors.TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                    Heading("Show your QR")
+                    Text("Present your member QR to the scanner at the gym entrance.", color = PulseColors.TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
                 }
                 Box(Modifier.size(42.dp).background(PulseColors.Accent.copy(alpha = .12f), CircleShape), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.QrCodeScanner, null, tint = PulseColors.Accent, modifier = Modifier.size(21.dp))
@@ -65,7 +63,7 @@ fun QrEntryScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(18.dp)) {
                                 Icon(Icons.Default.Info, null, tint = PulseColors.Error, modifier = Modifier.size(30.dp))
                                 Text("QR unavailable", color = PulseColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
-                                Text("Create or restore your membership before using gym entry.", color = PulseColors.TextMuted, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
+                                Text("Your saved membership does not contain an entry QR yet. Sign in and refresh your membership details.", color = PulseColors.TextMuted, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
                             }
                         }
                     }
@@ -74,12 +72,12 @@ fun QrEntryScreen(
                             Icon(Icons.Default.QrCodeScanner, null, tint = PulseColors.Accent, modifier = Modifier.size(20.dp))
                             Column(Modifier.padding(start = 9.dp)) {
                                 Text("READY FOR SCANNER", color = PulseColors.Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
-                                Text("Present this code to identify your membership.", color = PulseColors.TextMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
+                                Text("Hold this code in front of the entrance scanner.", color = PulseColors.TextMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
                             }
                         }
                         Spacer(Modifier.height(18.dp))
                         QrCodeDisplay(content = qrCodeValue, sizeDp = 238.dp)
-                        Text("Keep the QR visible while checking in.", color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
+                        Text("Attendance is recorded automatically when the entrance scan is accepted.", color = PulseColors.TextMuted, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp))
                     }
                 }
 
@@ -89,14 +87,12 @@ fun QrEntryScreen(
                 checkInMessage?.let { message ->
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(if (message.contains("recorded", true)) Icons.Default.CheckCircle else Icons.Default.Info, null, tint = if (message.contains("recorded", true)) PulseColors.AccentLime else PulseColors.Accent, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Info, null, tint = PulseColors.Accent, modifier = Modifier.size(18.dp))
                         Text(message, color = PulseColors.TextPrimary, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp))
                     }
                 }
 
                 Spacer(Modifier.height(14.dp))
-                PrimaryButton(text = if (isRecording) "RECORDING VISIT..." else "RECORD VISIT", onClick = onRecordCheckIn, enabled = !isRecording && qrCodeValue != null && !isLoading, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(9.dp))
                 GhostButton(text = "QR NOT WORKING? USE PASSWORD INSTEAD", onClick = onPasswordEntry, modifier = Modifier.fillMaxWidth(), enabled = !isLoading)
             }
             Spacer(Modifier.height(12.dp))
