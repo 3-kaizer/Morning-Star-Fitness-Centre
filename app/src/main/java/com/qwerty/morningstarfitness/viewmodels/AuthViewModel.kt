@@ -20,18 +20,13 @@ class AuthViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
     private val database = FirebaseDatabase.getInstance("https://morning-star-6c5e6-default-rtdb.firebaseio.com")
 
-    var registrationError by mutableStateOf<String?>(null)
-        private set
-    var isProcessing by mutableStateOf(false)
-        private set
+    var registrationError by mutableStateOf<String?>(null); private set
+    var isProcessing by mutableStateOf(false); private set
 
     fun signIn(email: String, password: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         val cleanEmail = email.trim()
         if (cleanEmail.isBlank() || password.isBlank()) { onError("Enter your email and password."); return }
-        viewModelScope.launch {
-            try { auth.signInWithEmailAndPassword(cleanEmail, password).await(); onSuccess() }
-            catch (e: Exception) { onError(friendlyAuthError(e)) }
-        }
+        viewModelScope.launch { try { auth.signInWithEmailAndPassword(cleanEmail, password).await(); onSuccess() } catch (e: Exception) { onError(friendlyAuthError(e)) } }
     }
 
     suspend fun verifyCurrentUserPassword(password: String): Boolean {
@@ -41,11 +36,9 @@ class AuthViewModel : ViewModel() {
         return try { user.reauthenticate(EmailAuthProvider.getCredential(email, password)).await(); true } catch (_: Exception) { false }
     }
 
-    suspend fun signInForGymEntry(email: String, password: String): Boolean {
-        val cleanEmail = email.trim()
-        if (cleanEmail.isBlank() || password.isBlank()) return false
-        return try { auth.signInWithEmailAndPassword(cleanEmail, password).await(); true } catch (_: Exception) { false }
-    }
+    suspend fun signInForGymEntry(email: String, password: String): Boolean = try {
+        auth.signInWithEmailAndPassword(email.trim(), password).await(); true
+    } catch (_: Exception) { false }
 
     suspend fun createUser(
         member: MemberFormState,
@@ -57,8 +50,7 @@ class AuthViewModel : ViewModel() {
         paymentReference: String? = null,
         mpesaReceipt: String? = null
     ): Boolean {
-        registrationError = null
-        isProcessing = true
+        registrationError = null; isProcessing = true
         var createdUser: com.google.firebase.auth.FirebaseUser? = null
         return try {
             require(member.email.isNotBlank()) { "Email is required." }
@@ -71,9 +63,11 @@ class AuthViewModel : ViewModel() {
             val uid = createdUser.uid
             val paymentId = mpesaReceipt?.ifBlank { null } ?: paymentReference
             val now = System.currentTimeMillis()
+            val resolvedMemberId = memberId ?: "MSFC-${uid.take(8).uppercase()}"
 
             val memberData = mapOf(
                 "uid" to uid,
+                "memberId" to resolvedMemberId,
                 "fullName" to member.fullName.trim(),
                 "phone" to member.phone.trim(),
                 "email" to member.email.trim(),
@@ -85,7 +79,6 @@ class AuthViewModel : ViewModel() {
                 "planPrice" to plan.priceKsh,
                 "planDuration" to plan.durationMonths,
                 "qrCode" to qrCodeValue,
-                "memberId" to memberId,
                 "membershipStart" to membershipStart,
                 "membershipExpiry" to membershipExpiry,
                 "paymentStatus" to "paid",
@@ -95,18 +88,22 @@ class AuthViewModel : ViewModel() {
                 "securityQuestion" to member.securityQuestion.trim(),
                 "securityAnswer" to hashSecurityAnswer(member.securityAnswer),
                 "registeredAt" to now,
-                "memberRecordVersion" to 2
+                "memberRecordVersion" to 3
             )
 
             database.reference.child("members").child(uid).setValue(memberData).await()
-            database.reference.child("members").child(uid).child("payments").child(paymentId!!).setValue(
+
+            database.reference.child("payments").child(paymentId!!).setValue(
                 mapOf(
                     "paymentId" to paymentId,
+                    "memberId" to resolvedMemberId,
+                    "memberUid" to uid,
+                    "memberName" to member.fullName.trim(),
                     "paymentReference" to paymentReference,
                     "mpesaReceipt" to mpesaReceipt,
                     "type" to "membership_registration",
                     "planId" to plan.id,
-                    "planLabel" to plan.label,
+                    "planName" to plan.label,
                     "amountKsh" to plan.priceKsh,
                     "status" to "paid",
                     "method" to "sandbox_demo",
@@ -116,11 +113,29 @@ class AuthViewModel : ViewModel() {
                     "membershipExpiry" to membershipExpiry
                 )
             ).await()
+
+            database.reference.child("notifications").child(resolvedMemberId).child("welcome_$now").setValue(
+                mapOf(
+                    "title" to "Welcome to Morning Star Fitness!",
+                    "message" to "Your membership has been successfully created. Your QR code is ready for gym entry.",
+                    "type" to "welcome",
+                    "read" to false,
+                    "createdAt" to now
+                )
+            ).await()
+            database.reference.child("notifications").child(resolvedMemberId).child("payment_$now").setValue(
+                mapOf(
+                    "title" to "Payment confirmed",
+                    "message" to "Your ${plan.label} membership payment of KSh ${plan.priceKsh} was recorded in presentation mode.",
+                    "type" to "payment",
+                    "read" to false,
+                    "createdAt" to now
+                )
+            ).await()
             true
         } catch (e: Exception) {
             try { createdUser?.delete()?.await() } catch (_: Exception) { }
-            registrationError = e.message ?: "Registration failed. Please try again."
-            false
+            registrationError = e.message ?: "Registration failed. Please try again."; false
         } finally { isProcessing = false }
     }
 
@@ -129,10 +144,7 @@ class AuthViewModel : ViewModel() {
     fun sendPasswordReset(email: String, onResult: (Boolean, String) -> Unit) {
         val cleanEmail = email.trim()
         if (cleanEmail.isBlank()) { onResult(false, "Enter your account email first."); return }
-        viewModelScope.launch {
-            try { auth.sendPasswordResetEmail(cleanEmail).await(); onResult(true, "Password reset instructions sent to $cleanEmail.") }
-            catch (e: Exception) { onResult(false, e.message ?: "Could not send reset email.") }
-        }
+        viewModelScope.launch { try { auth.sendPasswordResetEmail(cleanEmail).await(); onResult(true, "Password reset instructions sent to $cleanEmail.") } catch (e: Exception) { onResult(false, e.message ?: "Could not send reset email.") } }
     }
 
     fun currentUser() = auth.currentUser
