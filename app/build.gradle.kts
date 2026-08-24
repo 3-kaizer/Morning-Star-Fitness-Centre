@@ -10,7 +10,6 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use(localProperties::load)
 }
 val mpesaServerUrl = localProperties.getProperty("mpesa.server.url", "http://10.0.2.2:3000/api/")
-val mpesaDemoMode = localProperties.getProperty("mpesa.demo.mode", "false").toBoolean()
 
 android {
     namespace = "com.qwerty.morningstarfitness"
@@ -19,13 +18,15 @@ android {
     defaultConfig {
         applicationId = "com.qwerty.morningstarfitness"
         minSdk = 24
-        targetSdk = 37
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "MPESA_SERVER_URL", "\"${mpesaServerUrl.trimEnd('/')}/\"")
-        buildConfigField("Boolean", "MPESA_DEMO_MODE", mpesaDemoMode.toString())
+        // This project intentionally uses a presentation-only M-Pesa mock.
+        // No build variant is allowed to send a real STK Push or charge money.
+        buildConfigField("Boolean", "MPESA_DEMO_MODE", "true")
     }
 
     buildTypes {
@@ -33,7 +34,8 @@ android {
             optimization {
                 enable = false
             }
-            buildConfigField("Boolean", "MPESA_DEMO_MODE", "false")
+            // Keep the release APK presentation-safe as well.
+            buildConfigField("Boolean", "MPESA_DEMO_MODE", "true")
         }
     }
 
