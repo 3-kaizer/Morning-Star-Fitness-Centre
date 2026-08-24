@@ -1,0 +1,80 @@
+{
+  "members": {
+    "<firebaseUid>": {
+      "uid": "<firebaseUid>",
+      "memberId": "MSFC-XXXXXXXX",
+      "fullName": "Member Name",
+      "phone": "07XXXXXXXX",
+      "email": "member@example.com",
+      "dob": "YYYY-MM-DD",
+      "gender": "Male",
+      "emergencyContact": "07XXXXXXXX",
+      "planId": "premium",
+      "planLabel": "Premium",
+      "planPrice": 5000,
+      "planDuration": 3,
+      "qrCode": "GYM-<unique-token>",
+      "membershipStart": "YYYY-MM-DD",
+      "membershipExpiry": "YYYY-MM-DD",
+      "paymentStatus": "paid",
+      "paymentMethod": "sandbox_demo",
+      "lastPaymentId": "SANDBOX-XXXXXXXXXX",
+      "lastPaymentAt": 0,
+      "registeredAt": 0,
+      "memberRecordVersion": 3
+    }
+  },
+  "payments": {
+    "<paymentId>": {
+      "paymentId": "SANDBOX-XXXXXXXXXX",
+      "memberId": "MSFC-XXXXXXXX",
+      "memberUid": "<firebaseUid>",
+      "memberName": "Member Name",
+      "paymentReference": "REG-XXXXXXXX",
+      "mpesaReceipt": "SANDBOX-XXXXXXXXXX",
+      "type": "membership_registration",
+      "planId": "premium",
+      "planName": "Premium",
+      "amountKsh": 5000,
+      "status": "paid",
+      "method": "sandbox_demo",
+      "environment": "presentation",
+      "paidAt": 0,
+      "membershipStart": "YYYY-MM-DD",
+      "membershipExpiry": "YYYY-MM-DD"
+    }
+  },
+  "attendance": {
+    "<memberId>": {
+      "YYYY-MM-DD": {
+        "memberId": "MSFC-XXXXXXXX",
+        "memberUid": "<firebaseUid>",
+        "date": "Mon, 24 Aug",
+        "checkIn": "10:32 AM",
+        "checkOut": null,
+        "status": "present",
+        "timestamp": 0
+      }
+    }
+  },
+  "orders": {
+    "<orderId>": {
+      "userId": "<firebaseUid>",
+      "memberId": "MSFC-XXXXXXXX",
+      "status": "pending_pickup",
+      "paymentStatus": "paid",
+      "createdAt": 0
+    }
+  },
+  "notifications": {
+    "<memberId>": {
+      "<notificationId>": {
+        "title": "Welcome to Morning Star Fitness!",
+        "message": "Your membership has been successfully created.",
+        "type": "welcome",
+        "read": false,
+        "createdAt": 0
+      }
+    }
+  }
+}
