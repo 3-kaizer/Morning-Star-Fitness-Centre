@@ -25,7 +25,6 @@ import com.qwerty.morningstarfitness.ui.screens.home.HomeScreen
 import com.qwerty.morningstarfitness.ui.screens.launch.OnboardingScreen
 import com.qwerty.morningstarfitness.ui.screens.launch.SplashScreen
 import com.qwerty.morningstarfitness.ui.screens.member.MemberCardScreen
-import com.qwerty.morningstarfitness.ui.screens.notifications.NotificationItem
 import com.qwerty.morningstarfitness.ui.screens.notifications.NotificationsScreen
 import com.qwerty.morningstarfitness.ui.screens.payment.PaymentHistoryScreen
 import com.qwerty.morningstarfitness.ui.screens.payment.PaymentScreen
@@ -50,6 +49,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
     val shopViewModel: ShopViewModel = viewModel()
     val paymentViewModel: MpesaPaymentViewModel = viewModel()
     val paymentHistoryViewModel: PaymentHistoryViewModel = viewModel()
+    val notificationViewModel: NotificationViewModel = viewModel()
 
     fun firstName(): String = memberViewModel.memberForm?.fullName?.split(" ")?.firstOrNull()?.ifBlank { "there" } ?: "there"
     fun goHome(scope: kotlinx.coroutines.CoroutineScope) {
@@ -60,8 +60,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
                 navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
                 return@launch
             }
-            attendanceViewModel.fetchAttendanceHistory()
-            paymentHistoryViewModel.refresh()
+            attendanceViewModel.fetchAttendanceHistory(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh()
             navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
         }
     }
@@ -71,50 +70,34 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
         composable(ROUTE_SPLASH) { SplashScreen(onFinished = { val destination = if (authViewModel.currentUser() != null) ROUTE_HOME else ROUTE_ONBOARDING; navController.navigate(destination) { popUpTo(ROUTE_SPLASH) { inclusive = true } } }) }
         composable(ROUTE_ONBOARDING) { OnboardingScreen(onFinished = { navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_ONBOARDING) { inclusive = true } } }) }
         composable(ROUTE_LOGIN) {
-            val context = LocalContext.current
-            val scope = rememberCoroutineScope()
+            val context = LocalContext.current; val scope = rememberCoroutineScope()
             ManualEntryScreen(onBack = { navController.popBackStack() }, onSuccess = { goHome(scope) }, onForgotPassword = { email -> authViewModel.sendPasswordReset(email) { _, message -> Toast.makeText(context, message, Toast.LENGTH_LONG).show() } }, onPasswordSubmitted = { email, password -> authViewModel.signIn(email, password, onSuccess = { goHome(scope) }, onError = { message -> Toast.makeText(context, message, Toast.LENGTH_LONG).show() }) })
         }
         composable(ROUTE_SCAN_ENTRY) {
             var isMemberDataLoading by remember { mutableStateOf(true) }
             LaunchedEffect(Unit) {
                 memberViewModel.loadLocalMember()
-                if (authViewModel.currentUser() != null) {
-                    memberViewModel.refreshFromFirebase()
-                    attendanceViewModel.fetchAttendanceHistory()
-                }
+                if (authViewModel.currentUser() != null) { memberViewModel.refreshFromFirebase(); attendanceViewModel.fetchAttendanceHistory() }
                 isMemberDataLoading = false
             }
-            QrEntryScreen(
-                qrCodeValue = memberViewModel.ensureMembershipQr(),
-                fullName = memberViewModel.memberForm?.fullName,
-                memberId = memberViewModel.memberId,
-                status = memberViewModel.getMembershipStatus(),
-                membershipExpiry = memberViewModel.membershipExpiry,
-                isLoading = isMemberDataLoading,
-                onBack = { navController.popBackStack() },
-                onPasswordEntry = {
-                    if (authViewModel.currentUser() == null) navController.navigate(ROUTE_LOGIN)
-                    else navController.navigate(ROUTE_PASSWORD_ENTRY)
-                }
-            )
+            QrEntryScreen(qrCodeValue = memberViewModel.ensureMembershipQr(), fullName = memberViewModel.memberForm?.fullName, memberId = memberViewModel.memberId, status = memberViewModel.getMembershipStatus(), membershipExpiry = memberViewModel.membershipExpiry, isLoading = isMemberDataLoading, onBack = { navController.popBackStack() }, onPasswordEntry = { navController.navigate(ROUTE_PASSWORD_ENTRY) })
         }
         composable(ROUTE_PASSWORD_ENTRY) {
-            val scope = rememberCoroutineScope()
-            var isVerifying by remember { mutableStateOf(false) }
-            var errorMessage by remember { mutableStateOf<String?>(null) }
+            val scope = rememberCoroutineScope(); var isVerifying by remember { mutableStateOf(false) }; var errorMessage by remember { mutableStateOf<String?>(null) }
             PasswordEntryScreen(memberName = memberViewModel.memberForm?.fullName, securityQuestion = null, isVerifying = isVerifying, errorMessage = errorMessage, onBack = { navController.popBackStack() }, onVerify = { password ->
                 scope.launch {
                     isVerifying = true; errorMessage = null
-                    if (authViewModel.currentUser() == null) {
-                        errorMessage = "Your session has expired. Sign in again to use the password fallback."
-                    } else if (authViewModel.verifyCurrentUserPassword(password)) {
+                    val wasSignedIn = authViewModel.currentUser() != null
+                    val authenticated = if (wasSignedIn) authViewModel.verifyCurrentUserPassword(password) else authViewModel.signInForGymEntry(memberViewModel.memberForm?.email.orEmpty(), password)
+                    if (!authenticated) {
+                        errorMessage = "Incorrect account password. Please try again."
+                    } else {
                         val recorded = attendanceViewModel.recordCheckIn()
                         if (recorded) {
-                            memberViewModel.refreshFromFirebase(); attendanceViewModel.fetchAttendanceHistory()
-                            navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_PASSWORD_ENTRY) { inclusive = true } }
+                            memberViewModel.refreshFromFirebase(); attendanceViewModel.fetchAttendanceHistory(); notificationViewModel.refresh()
+                            navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
                         } else errorMessage = attendanceViewModel.lastCheckInError ?: "Entry could not be recorded. Please try again."
-                    } else errorMessage = "Incorrect account password. Please try again."
+                    }
                     isVerifying = false
                 }
             })
@@ -122,18 +105,16 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
         composable(ROUTE_REGISTRATION) { RegistrationScreen(onContinue = { form -> memberViewModel.updateMemberForm(form); navController.navigate(ROUTE_PLAN) }) }
         composable(ROUTE_PLAN) { PlanScreen(onBack = { navController.popBackStack() }, onContinue = { plan -> memberViewModel.updateSelectedPlan(plan); navController.navigate(ROUTE_PAYMENT) }) }
         composable(ROUTE_PAYMENT) {
-            val scope = rememberCoroutineScope()
-            val form = memberViewModel.memberForm
+            val scope = rememberCoroutineScope(); val form = memberViewModel.memberForm
             PaymentScreen(plan = memberViewModel.selectedPlan, phone = form?.phone.orEmpty(), isProcessing = paymentViewModel.isProcessing || authViewModel.isProcessing, paymentStatus = paymentViewModel.paymentStatus, receipt = paymentViewModel.mpesaReceipt, errorMessage = paymentViewModel.errorMessage ?: authViewModel.registrationError, isPresentationSandbox = paymentViewModel.isPresentationSandbox, onBack = { navController.popBackStack() }, onPay = {
                 val plan = memberViewModel.selectedPlan ?: return@PaymentScreen
                 val reference = "REG-${UUID.randomUUID().toString().replace("-", "").take(8).uppercase()}"
                 paymentViewModel.startStkPayment(phone = form?.phone.orEmpty(), amount = plan.priceKsh, purpose = "membership_registration", referenceId = reference) { success ->
                     if (success) scope.launch {
                         val currentForm = memberViewModel.memberForm ?: return@launch
-                        memberViewModel.prepareMembership(plan)
-                        val qr = memberViewModel.generateQrCode(forceNew = true)
+                        memberViewModel.prepareMembership(plan); val qr = memberViewModel.generateQrCode(forceNew = true)
                         if (authViewModel.createUser(currentForm, plan, qr, memberViewModel.memberId, memberViewModel.membershipStart, memberViewModel.membershipExpiry, paymentReference = reference, mpesaReceipt = paymentViewModel.mpesaReceipt)) {
-                            memberViewModel.completePaymentLocally(plan); paymentHistoryViewModel.refresh(); navController.navigate(ROUTE_SUCCESS)
+                            memberViewModel.completePaymentLocally(plan); paymentHistoryViewModel.refresh(); notificationViewModel.refresh(); navController.navigate(ROUTE_SUCCESS)
                         }
                     }
                 }
@@ -145,15 +126,15 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             PaymentScreen(plan = memberViewModel.selectedPlan, phone = memberViewModel.memberForm?.phone.orEmpty(), isProcessing = paymentViewModel.isProcessing || memberViewModel.isRenewing, paymentStatus = paymentViewModel.paymentStatus, receipt = paymentViewModel.mpesaReceipt, errorMessage = paymentViewModel.errorMessage ?: memberViewModel.renewalError, isPresentationSandbox = paymentViewModel.isPresentationSandbox, onBack = { navController.popBackStack() }, onPay = {
                 val plan = memberViewModel.selectedPlan ?: return@PaymentScreen
                 paymentViewModel.startStkPayment(phone = memberViewModel.memberForm?.phone.orEmpty(), amount = plan.priceKsh, purpose = "membership_renewal", referenceId = "RENEW-${UUID.randomUUID().toString().replace("-", "").take(8).uppercase()}", planId = plan.id, planLabel = plan.label, planDuration = plan.durationMonths) { success ->
-                    if (success) scope.launch { memberViewModel.refreshFromFirebase(); paymentHistoryViewModel.refresh(); paymentViewModel.reset(); navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_HOME) { inclusive = true } } }
+                    if (success) scope.launch { memberViewModel.refreshFromFirebase(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh(); paymentViewModel.reset(); navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_HOME) { inclusive = true } } }
                 }
             }, onCancel = { paymentViewModel.reset() })
         }
         composable(ROUTE_SUCCESS) { SuccessScreen(firstName = firstName(), plan = memberViewModel.selectedPlan, qrCodeValue = memberViewModel.qrCodeValue ?: "", onContinue = { navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_ENTRY) { inclusive = true } } }) }
         composable(ROUTE_HOME) {
             val scope = rememberCoroutineScope(); var isRefreshing by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) { memberViewModel.refreshFromFirebase(); attendanceViewModel.fetchAttendanceHistory(); paymentHistoryViewModel.refresh() }
-            HomeScreen(firstName = firstName(), plan = memberViewModel.selectedPlan, onLogout = { authViewModel.signOut(); attendanceViewModel.clearHistory(); navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_HOME) { inclusive = true } } }, onOpenShop = { navController.navigate(ROUTE_SHOP) }, onOpenProfile = { navController.navigate(ROUTE_PROFILE) }, onOpenAttendance = { navController.navigate(ROUTE_ATTENDANCE) }, onOpenTrainers = { navController.navigate(ROUTE_TRAINERS) }, onOpenGymStatus = { navController.navigate(ROUTE_GYM_STATUS) }, onOpenNotifications = { navController.navigate(ROUTE_NOTIFICATIONS) }, onOpenPaymentHistory = { navController.navigate(ROUTE_PAYMENT_HISTORY) }, onOpenMemberCard = { navController.navigate(ROUTE_MEMBER_CARD) }, onScanEntry = { navController.navigate(ROUTE_SCAN_ENTRY) }, onGetStarted = { navController.navigate(ROUTE_REGISTRATION) }, onRenewMembership = { navController.navigate(ROUTE_RENEW) }, membershipStart = memberViewModel.membershipStart, membershipExpiry = memberViewModel.membershipExpiry, attendanceCount = attendanceViewModel.attendanceHistory.size, trainerCount = 4, notificationCount = 2, isLoaded = memberViewModel.isLoaded, isRefreshing = isRefreshing, onRefresh = { if (!isRefreshing) scope.launch { isRefreshing = true; try { memberViewModel.refreshFromFirebase(); attendanceViewModel.fetchAttendanceHistory(); paymentHistoryViewModel.refresh() } finally { isRefreshing = false } } })
+            LaunchedEffect(Unit) { memberViewModel.refreshFromFirebase(); attendanceViewModel.fetchAttendanceHistory(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh() }
+            HomeScreen(firstName = firstName(), plan = memberViewModel.selectedPlan, onLogout = { authViewModel.signOut(); attendanceViewModel.clearHistory(); notificationViewModel.refresh(); navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_HOME) { inclusive = true } } }, onOpenShop = { navController.navigate(ROUTE_SHOP) }, onOpenProfile = { navController.navigate(ROUTE_PROFILE) }, onOpenAttendance = { navController.navigate(ROUTE_ATTENDANCE) }, onOpenTrainers = { navController.navigate(ROUTE_TRAINERS) }, onOpenGymStatus = { navController.navigate(ROUTE_GYM_STATUS) }, onOpenNotifications = { navController.navigate(ROUTE_NOTIFICATIONS) }, onOpenPaymentHistory = { navController.navigate(ROUTE_PAYMENT_HISTORY) }, onOpenMemberCard = { navController.navigate(ROUTE_MEMBER_CARD) }, onScanEntry = { navController.navigate(ROUTE_SCAN_ENTRY) }, onGetStarted = { navController.navigate(ROUTE_REGISTRATION) }, onRenewMembership = { navController.navigate(ROUTE_RENEW) }, membershipStart = memberViewModel.membershipStart, membershipExpiry = memberViewModel.membershipExpiry, attendanceCount = attendanceViewModel.attendanceHistory.size, trainerCount = 4, notificationCount = notificationViewModel.unreadCount, isLoaded = memberViewModel.isLoaded, isRefreshing = isRefreshing, onRefresh = { if (!isRefreshing) scope.launch { isRefreshing = true; try { memberViewModel.refreshFromFirebase(); attendanceViewModel.fetchAttendanceHistory(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh() } finally { isRefreshing = false } } })
         }
         composable(ROUTE_ATTENDANCE) { AttendanceScreen(entries = attendanceViewModel.attendanceHistory, onBack = { navController.popBackStack() }) }
         composable(ROUTE_TRAINERS) { TrainersScreen(onBack = { navController.popBackStack() }, onTrainerSelected = { trainer: TrainerSummary -> navController.navigate(ROUTE_TRAINER_DETAIL + "?name=${trainer.name}&specialty=${trainer.specialty}&schedule=${trainer.schedule}") }) }
@@ -162,10 +143,10 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
         composable(ROUTE_PAYMENT_HISTORY) { PaymentHistoryScreen(entries = paymentHistoryViewModel.entries, onBack = { navController.popBackStack() }) }
         composable(ROUTE_MEMBER_CARD) { MemberCardScreen(fullName = memberViewModel.memberForm?.fullName ?: "Member", memberId = memberViewModel.memberId, plan = memberViewModel.selectedPlan?.label, status = memberViewModel.getMembershipStatus(), expiry = memberViewModel.membershipExpiry, qrCode = memberViewModel.qrCodeValue, onBack = { navController.popBackStack() }) }
         composable(ROUTE_NOTIFICATIONS) {
-            val daysLeft = memberViewModel.membershipExpiry?.let { expiry -> try { val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(expiry); if (d != null) java.util.concurrent.TimeUnit.MILLISECONDS.toDays(d.time - System.currentTimeMillis()).toInt().coerceAtLeast(0) else 0 } catch (_: Exception) { 0 } } ?: 0
-            NotificationsScreen(messages = listOf(NotificationItem("Membership status", if (memberViewModel.getMembershipStatus() == "Expired") "Your membership has expired. Renew to restore access." else "$daysLeft day${if (daysLeft == 1) "" else "s"} remaining on your membership.", "Today"), NotificationItem("Trainers on duty", "Four trainers are scheduled on the gym floor today.", "Today"), NotificationItem("Gym status", "Morning Star is open from 6:00 AM to 10:00 PM.", "Today")), onBack = { navController.popBackStack() })
+            LaunchedEffect(Unit) { notificationViewModel.refresh() }
+            NotificationsScreen(messages = notificationViewModel.notifications, onBack = { navController.popBackStack() })
         }
-        composable(ROUTE_SHOP) { ShopScreen(shopViewModel = shopViewModel, memberViewModel = memberViewModel, paymentViewModel = paymentViewModel, onBack = { navController.popBackStack() }, onOrderSuccess = { orderId -> navController.navigate("${ROUTE_ORDER_SUCCESS}/$orderId") { popUpTo(ROUTE_SHOP) { inclusive = true } } }) }
+        composable(ROUTE_SHOP) { ShopScreen(shopViewModel = shopViewModel, memberViewModel = memberViewModel, paymentViewModel = paymentViewModel, onBack = { navController.popBackStack() }, onOrderSuccess = { orderId -> notificationViewModel.refresh(); navController.navigate("${ROUTE_ORDER_SUCCESS}/$orderId") { popUpTo(ROUTE_SHOP) { inclusive = true } } }) }
         composable("${ROUTE_ORDER_SUCCESS}/{orderId}") { backStackEntry -> OrderSuccessScreen(orderId = backStackEntry.arguments?.getString("orderId") ?: "", viewModel = shopViewModel, onContinue = { navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_HOME) { inclusive = true } } }) }
         composable(ROUTE_PROFILE) { val context = LocalContext.current; ProfileScreen(memberForm = memberViewModel.memberForm, plan = memberViewModel.selectedPlan, onBack = { navController.popBackStack() }, onSave = { updated -> memberViewModel.updateProfile(updated) { _, message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() } }) }
     }
