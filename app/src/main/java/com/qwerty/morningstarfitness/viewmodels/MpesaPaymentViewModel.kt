@@ -43,59 +43,47 @@ class MpesaPaymentViewModel : ViewModel() {
         if (amount < 1) { errorMessage = "Invalid payment amount."; onComplete(false); return }
         if (phone.isBlank()) { errorMessage = "A valid M-Pesa phone number is required."; onComplete(false); return }
         errorMessage = null; paymentStatus = "starting"; mpesaReceipt = null; isProcessing = true
-
-        if (BuildConfig.MPESA_DEMO_MODE) {
-            runPresentationSandboxPayment(amount, purpose, referenceId, planId, planLabel, planDuration, onComplete)
-            return
-        }
+        if (BuildConfig.MPESA_DEMO_MODE) { runPresentationSandboxPayment(amount, purpose, referenceId, planId, planLabel, planDuration, onComplete); return }
 
         viewModelScope.launch {
             try {
                 val body = gson.toJson(mapOf("phone" to phone, "amount" to amount, "purpose" to purpose, "referenceId" to referenceId))
                 val request = Request.Builder().url(BuildConfig.MPESA_SERVER_URL + "mpesa/stkpush").post(body.toRequestBody("application/json".toMediaType())).build()
-                val response = http.newCall(request).execute()
-                val responseText = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    val message = runCatching { gson.fromJson(responseText, JsonObject::class.java).get("error")?.asString }.getOrNull()
-                    throw Exception(message ?: "M-Pesa server rejected the request.")
-                }
+                val response = http.newCall(request).execute(); val responseText = response.body?.string().orEmpty()
+                if (!response.isSuccessful) throw Exception(runCatching { gson.fromJson(responseText, JsonObject::class.java).get("error")?.asString }.getOrNull() ?: "M-Pesa server rejected the request.")
                 val accepted = gson.fromJson(responseText, JsonObject::class.java).get("accepted")?.asBoolean == true
                 if (!accepted) throw Exception("M-Pesa STK Push was not accepted.")
                 paymentStatus = "pending"
                 if (!waitForVerifiedPayment(referenceId)) { onComplete(false); return@launch }
                 completeVerifiedPayment(amount, purpose, referenceId, planId, planLabel, planDuration, onComplete)
-            } catch (e: Exception) {
-                paymentStatus = "failed"; errorMessage = e.message ?: "M-Pesa payment failed."; onComplete(false)
-            } finally { isProcessing = false }
+            } catch (e: Exception) { paymentStatus = "failed"; errorMessage = e.message ?: "M-Pesa payment failed."; onComplete(false) }
+            finally { isProcessing = false }
         }
     }
 
     private fun runPresentationSandboxPayment(amount: Int, purpose: String, referenceId: String, planId: String?, planLabel: String?, planDuration: Int?, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {
-                // Presentation mode is intentionally non-financial: no Safaricom request is made.
                 paymentStatus = "sandbox_pending"
                 delay(1200)
                 mpesaReceipt = "SANDBOX-${UUID.randomUUID().toString().replace("-", "").take(10).uppercase()}"
                 paymentStatus = "paid"
                 completeVerifiedPayment(amount, purpose, referenceId, planId, planLabel, planDuration, onComplete)
-            } catch (e: Exception) {
-                paymentStatus = "failed"; errorMessage = e.message ?: "Presentation sandbox payment failed."; onComplete(false)
-            } finally { isProcessing = false }
+            } catch (e: Exception) { paymentStatus = "failed"; errorMessage = e.message ?: "Presentation sandbox payment failed."; onComplete(false) }
+            finally { isProcessing = false }
         }
     }
 
     private suspend fun completeVerifiedPayment(amount: Int, purpose: String, referenceId: String, planId: String?, planLabel: String?, planDuration: Int?, onComplete: (Boolean) -> Unit) {
+        val uid = auth.currentUser?.uid
         when (purpose) {
-            "membership_registration" -> {
-                paymentStatus = "paid"
-                onComplete(true)
-            }
+            "membership_registration" -> { paymentStatus = "paid"; onComplete(true) }
             "membership_renewal" -> {
-                val uid = auth.currentUser?.uid ?: throw Exception("Please sign in before renewing membership.")
+                if (uid == null) throw Exception("Please sign in before renewing membership.")
                 val memberRef = database.reference.child("members").child(uid)
-                val snapshot = memberRef.get().await()
-                if (!snapshot.exists()) throw Exception("Member profile not found.")
+                val snapshot = memberRef.get().await(); if (!snapshot.exists()) throw Exception("Member profile not found.")
+                val memberId = snapshot.child("memberId").getValue(String::class.java).orEmpty()
+                val memberName = snapshot.child("fullName").getValue(String::class.java).orEmpty()
                 val existingExpiry = snapshot.child("membershipExpiry").getValue(String::class.java)
                 val calendar = Calendar.getInstance(); val today = calendar.time
                 val existing = existingExpiry?.let { runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it) }.getOrNull() }
@@ -108,54 +96,27 @@ class MpesaPaymentViewModel : ViewModel() {
                 val method = if (BuildConfig.MPESA_DEMO_MODE) "sandbox_demo" else "mpesa_daraja_sandbox"
                 val environment = if (BuildConfig.MPESA_DEMO_MODE) "presentation" else "sandbox"
 
-                memberRef.updateChildren(
-                    mapOf(
-                        "planId" to planId,
-                        "planLabel" to planLabel,
-                        "planPrice" to amount,
-                        "planDuration" to planDuration,
-                        "membershipStart" to startDate,
-                        "membershipExpiry" to expiry,
-                        "paymentStatus" to "paid",
-                        "paymentMethod" to method,
-                        "lastPaymentId" to receipt,
-                        "lastPaymentAt" to now,
-                        "lastRenewedAt" to now
-                    )
-                ).await()
-
-                // Keep all membership payments in the same collection used by Payment History.
-                memberRef.child("payments").child(receipt).setValue(
-                    mapOf(
-                        "paymentId" to receipt,
-                        "paymentReference" to referenceId,
-                        "mpesaReceipt" to receipt,
-                        "type" to "membership_renewal",
-                        "planId" to planId,
-                        "planLabel" to planLabel,
-                        "amountKsh" to amount,
-                        "status" to "paid",
-                        "method" to method,
-                        "paidAt" to now,
-                        "environment" to environment,
-                        "membershipStart" to startDate,
-                        "membershipExpiry" to expiry
-                    )
-                ).await()
-
+                memberRef.updateChildren(mapOf("planId" to planId, "planLabel" to planLabel, "planPrice" to amount, "planDuration" to planDuration, "membershipStart" to startDate, "membershipExpiry" to expiry, "paymentStatus" to "paid", "paymentMethod" to method, "lastPaymentId" to receipt, "lastPaymentAt" to now, "lastRenewedAt" to now)).await()
+                database.reference.child("payments").child(receipt).setValue(mapOf("paymentId" to receipt, "memberId" to memberId, "memberUid" to uid, "memberName" to memberName, "paymentReference" to referenceId, "mpesaReceipt" to receipt, "type" to "membership_renewal", "planId" to planId, "planName" to planLabel, "amountKsh" to amount, "status" to "paid", "method" to method, "paidAt" to now, "environment" to environment, "membershipStart" to startDate, "membershipExpiry" to expiry)).await()
+                if (memberId.isNotBlank()) database.reference.child("notifications").child(memberId).child("renewal_$now").setValue(mapOf("title" to "Membership renewed", "message" to "Your $planLabel membership is active until $expiry.", "type" to "renewal", "read" to false, "createdAt" to now)).await()
                 paymentStatus = "paid"; onComplete(true)
             }
             "shop_order" -> {
-                val uid = auth.currentUser?.uid ?: throw Exception("Please sign in before paying for an order.")
+                if (uid == null) throw Exception("Please sign in before paying for an order.")
                 val receipt = mpesaReceipt ?: referenceId; val now = System.currentTimeMillis()
                 val method = if (BuildConfig.MPESA_DEMO_MODE) "sandbox_demo" else "mpesa_daraja_sandbox"
                 val environment = if (BuildConfig.MPESA_DEMO_MODE) "presentation" else "sandbox"
-                val updates = mapOf("paymentStatus" to "paid", "paymentMethod" to method, "paidAt" to now, "mpesaReceipt" to receipt, "status" to "pending_pickup")
                 val orderRef = database.reference.child("orders").child(referenceId); val orderSnapshot = orderRef.get().await()
                 if (!orderSnapshot.exists()) throw Exception("Order could not be found.")
                 if (orderSnapshot.child("userId").getValue(String::class.java) != uid) throw Exception("This order does not belong to the signed-in member.")
-                orderRef.updateChildren(updates).await(); database.reference.child("members").child(uid).child("orders").child(referenceId).updateChildren(updates).await()
-                database.reference.child("members").child(uid).child("paymentHistory").child(referenceId).setValue(mapOf("paymentId" to receipt, "purpose" to purpose, "referenceId" to referenceId, "amountKsh" to amount, "status" to "paid", "method" to method, "paidAt" to now, "environment" to environment, "receipt" to receipt)).await()
+                val memberRef = database.reference.child("members").child(uid)
+                val member = memberRef.get().await()
+                val memberId = member.child("memberId").getValue(String::class.java).orEmpty()
+                val memberName = member.child("fullName").getValue(String::class.java).orEmpty()
+                orderRef.updateChildren(mapOf("paymentStatus" to "paid", "paymentMethod" to method, "paidAt" to now, "mpesaReceipt" to receipt, "status" to "pending_pickup")).await()
+                memberRef.child("orders").child(referenceId).updateChildren(mapOf("paymentStatus" to "paid", "paymentMethod" to method, "paidAt" to now, "mpesaReceipt" to receipt, "status" to "pending_pickup")).await()
+                database.reference.child("payments").child(receipt).setValue(mapOf("paymentId" to receipt, "memberId" to memberId, "memberUid" to uid, "memberName" to memberName, "paymentReference" to referenceId, "mpesaReceipt" to receipt, "type" to "shop_order", "amountKsh" to amount, "status" to "paid", "method" to method, "paidAt" to now, "environment" to environment, "orderId" to referenceId)).await()
+                if (memberId.isNotBlank()) database.reference.child("notifications").child(memberId).child("order_$now").setValue(mapOf("title" to "Shop payment confirmed", "message" to "Your shop order $referenceId has been paid in presentation mode.", "type" to "order", "read" to false, "createdAt" to now)).await()
                 paymentStatus = "paid"; onComplete(true)
             }
             else -> throw Exception("Unsupported payment type.")
