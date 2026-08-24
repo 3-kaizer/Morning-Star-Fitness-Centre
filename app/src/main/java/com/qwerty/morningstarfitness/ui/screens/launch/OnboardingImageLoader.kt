@@ -2,26 +2,13 @@ package com.qwerty.morningstarfitness.ui.screens.launch
 
 import android.content.Context
 import coil3.ImageLoader
-import coil3.request.ImageRequest
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.qwerty.morningstarfitness.ui.components.RemoteImageLoader
 
-/** Shared cached image loader for onboarding photography. */
+/** Backwards-compatible onboarding facade over the app-wide image cache. */
 object OnboardingImageLoader {
-    fun create(context: Context): ImageLoader = ImageLoader.Builder(context)
-        .build()
+    fun create(context: Context): ImageLoader = RemoteImageLoader.create(context)
 
     suspend fun preload(context: Context, imageLoader: ImageLoader, urls: List<String>) {
-        withContext(Dispatchers.IO) {
-            urls.forEach { url ->
-                imageLoader.enqueue(
-                    ImageRequest.Builder(context)
-                        .data(url)
-                        .memoryCacheKey(url)
-                        .diskCacheKey(url)
-                        .build()
-                )
-            }
-        }
+        RemoteImageLoader.preload(context, imageLoader, urls)
     }
 }
