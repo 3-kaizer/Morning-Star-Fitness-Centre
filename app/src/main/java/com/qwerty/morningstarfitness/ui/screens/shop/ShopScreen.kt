@@ -1,5 +1,6 @@
 package com.qwerty.morningstarfitness.ui.screens.shop
 
+import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,6 +29,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,16 +38,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.ImageLoader
 import coil3.compose.SubcomposeAsyncImage
+import coil3.request.ImageRequest
 import com.qwerty.morningstarfitness.models.ProductModel
+import com.qwerty.morningstarfitness.models.defaultProducts
 import com.qwerty.morningstarfitness.ui.components.BrandMark
 import com.qwerty.morningstarfitness.ui.components.GhostButton
 import com.qwerty.morningstarfitness.ui.components.Heading
 import com.qwerty.morningstarfitness.ui.components.PrimaryButton
+import com.qwerty.morningstarfitness.ui.components.RemoteImageLoader
 import com.qwerty.morningstarfitness.ui.theme.PulseColors
 import com.qwerty.morningstarfitness.viewmodels.MemberViewModel
 import com.qwerty.morningstarfitness.viewmodels.MpesaPaymentViewModel
@@ -58,6 +66,14 @@ fun ShopScreen(shopViewModel: ShopViewModel, memberViewModel: MemberViewModel, p
     val cartTotal = shopViewModel.getCartTotal()
     val itemCount = shopViewModel.getItemCount()
     val memberForm = memberViewModel.memberForm
+    val context = LocalContext.current
+    val imageLoader = remember(context) { RemoteImageLoader.create(context) }
+
+    // Warm the shared Coil disk/memory cache while the shop screen is opening.
+    // This makes the product grid much less likely to wait on a network fetch.
+    LaunchedEffect(imageLoader) {
+        RemoteImageLoader.preload(context, imageLoader, shopViewModel.products.map { it.imageUrl })
+    }
 
     Box(Modifier.fillMaxSize().background(PulseColors.Background).padding(20.dp), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.fillMaxWidth().widthIn(max = 420.dp).verticalScroll(rememberScrollState()).background(PulseColors.Surface, RoundedCornerShape(20.dp)).padding(24.dp)) {
@@ -69,7 +85,7 @@ fun ShopScreen(shopViewModel: ShopViewModel, memberViewModel: MemberViewModel, p
                 Text("Useful gym essentials available for you.", color = PulseColors.TextMuted, fontSize = 14.sp)
                 Spacer(Modifier.height(20.dp))
                 shopViewModel.products.forEach { product ->
-                    ProductRow(product, cart[product.id] ?: 0) { newQty -> if (!isProcessing) shopViewModel.updateQuantity(product.id, newQty) }
+                    ProductRow(product, cart[product.id] ?: 0, imageLoader) { newQty -> if (!isProcessing) shopViewModel.updateQuantity(product.id, newQty) }
                     Spacer(Modifier.height(10.dp))
                 }
                 Spacer(Modifier.height(12.dp))
@@ -113,17 +129,17 @@ fun CheckoutContent(shopViewModel: ShopViewModel, memberForm: com.qwerty.morning
         Text("PAYMENT", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseColors.AccentLime)
         Spacer(Modifier.height(12.dp))
         Column(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(16.dp)) {
-            Text("M-PESA DARaja SANDBOX", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("M-PESA DARAjA SANDBOX", color = PulseColors.Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Text("Amount: KSh $cartTotal", color = PulseColors.TextPrimary, fontSize = 13.sp)
             Text("Number: ${memberForm?.phone ?: "Not available"}", color = PulseColors.TextPrimary, fontSize = 13.sp)
             Spacer(Modifier.height(8.dp))
-            Text("An STK prompt will be sent to this number. Enter the M-Pesa PIN on the phone.", color = PulseColors.TextMuted, fontSize = 11.sp)
+            Text("This presentation build uses a mock STK flow and will not charge money.", color = PulseColors.TextMuted, fontSize = 11.sp)
         }
         if (paymentViewModel.paymentStatus != null) { Spacer(Modifier.height(10.dp)); Text("Payment: ${paymentViewModel.paymentStatus!!.uppercase()}", color = PulseColors.TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
         if (paymentViewModel.mpesaReceipt != null) { Spacer(Modifier.height(6.dp)); Text("Receipt: ${paymentViewModel.mpesaReceipt}", color = PulseColors.TextPrimary, fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
         if (paymentViewModel.errorMessage != null) { Spacer(Modifier.height(12.dp)); Text(paymentViewModel.errorMessage!!, color = PulseColors.Error, fontSize = 12.sp) }
         Spacer(Modifier.height(24.dp))
-        PrimaryButton(text = if (paymentViewModel.isProcessing || shopViewModel.isProcessingOrder) "Waiting for M-Pesa..." else "PAY WITH M-PESA", onClick = {
+        PrimaryButton(text = if (paymentViewModel.isProcessing || shopViewModel.isProcessingOrder) "Processing..." else "PAY WITH M-PESA", onClick = {
             shopViewModel.createPendingOrder { success, orderId ->
                 if (success && orderId != null) {
                     paymentViewModel.startStkPayment(phone = memberForm?.phone.orEmpty(), amount = cartTotal, purpose = "shop_order", referenceId = orderId) { paid ->
@@ -151,13 +167,35 @@ fun FulfilmentOption(selected: Boolean, label: String, icon: androidx.compose.ui
 }
 
 @Composable
-private fun ProductRow(product: ProductModel, quantity: Int, onQuantityChange: (Int) -> Unit) {
+private fun ProductRow(product: ProductModel, quantity: Int, imageLoader: ImageLoader, onQuantityChange: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        ProductImage(product); Spacer(Modifier.width(12.dp))
+        ProductImage(product, imageLoader); Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) { Text(product.name, color = PulseColors.TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp); Text(product.category, color = PulseColors.TextMuted, fontSize = 11.sp); Text("KSh ${product.priceKsh}", color = PulseColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 13.sp) }
         Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { if (quantity > 0) onQuantityChange(quantity - 1) }) { Text("–", color = PulseColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold) }; Text(quantity.toString(), color = PulseColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.width(20.dp)); IconButton(onClick = { onQuantityChange(quantity + 1) }) { Text("+", color = PulseColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold) } }
     }
 }
 
 @Composable
-private fun ProductImage(product: ProductModel) { SubcomposeAsyncImage(model = product.imageUrl, contentDescription = product.name, contentScale = ContentScale.Crop, modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)).background(PulseColors.Background)) }
+private fun ProductImage(product: ProductModel, imageLoader: ImageLoader) {
+    SubcomposeAsyncImage(
+        model = ImageRequest.Builder(LocalContext.current)
+            .data(product.imageUrl)
+            .memoryCacheKey(product.imageUrl)
+            .diskCacheKey(product.imageUrl)
+            .build(),
+        imageLoader = imageLoader,
+        contentDescription = product.name,
+        contentScale = ContentScale.Crop,
+        loading = {
+            Box(Modifier.fillMaxSize().background(PulseColors.Background), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = PulseColors.Accent, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+            }
+        },
+        error = {
+            Box(Modifier.fillMaxSize().background(PulseColors.Background), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Store, contentDescription = null, tint = PulseColors.TextMuted, modifier = Modifier.size(24.dp))
+            }
+        },
+        modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)).background(PulseColors.Background)
+    )
+}
