@@ -70,7 +70,7 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         return try {
             var snapshot = database.reference.child("members").child(uid).get().await()
             if (!snapshot.exists()) {
-                store.clear(); memberForm = null; memberId = null; qrCodeValue = null; selectedPlan = null; isLoaded = true; return false
+                memberForm = null; memberId = null; qrCodeValue = null; selectedPlan = null; isLoaded = true; return false
             }
             val normalizedId = migrateExistingMember(snapshot)
             snapshot = database.reference.child("members").child(uid).get().await()
@@ -78,19 +78,33 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         } catch (e: Exception) { profileSaveError = e.message ?: "Could not refresh member details."; isLoaded = true; false }
     }
 
+    /**
+     * Restores the remembered member even when Firebase Auth is signed out.
+     * This is intentional: the member's QR is a persistent gym-entry credential
+     * displayed at the physical entrance scanner. A normal logout must not erase it.
+     */
     suspend fun loadLocalMember(): Boolean {
         return try {
-            val uid = auth.currentUser?.uid
-            if (uid.isNullOrBlank()) { store.clear(); isLoaded = true; return false }
             val preferences = store.read()
             fun get(key: String): String = preferences.entries.firstOrNull { it.key.name == key }?.value.orEmpty()
-            if (get("auth_uid") != uid) { store.clear(); isLoaded = true; return false }
+            val savedUid = get("auth_uid")
+            val currentUid = auth.currentUser?.uid
+            if (currentUid != null && savedUid != currentUid) {
+                store.clear(); isLoaded = true; return false
+            }
             val name = get("full_name")
             if (name.isBlank()) { isLoaded = true; return false }
             memberForm = MemberFormState(name, get("phone"), get("email"), get("dob"), get("gender"), get("emergency_contact"), get("security_question"), get("security_answer"))
             val label = get("selected_plan_label")
             selectedPlan = if (label.isBlank()) null else MembershipPlanModel(get("selected_plan_id"), label, get("selected_plan_price").toIntOrNull() ?: 0, get("selected_plan_duration").toIntOrNull() ?: 0)
-            paymentMethod = get("payment_method").ifBlank { "mpesa" }; paymentStatus = get("payment_status").ifBlank { "pending" }; qrCodeValue = get("qr_code").ifBlank { null }; memberId = get("member_id").ifBlank { null }; membershipStart = get("membership_start").ifBlank { null }; membershipExpiry = get("membership_expiry").ifBlank { null }; isLoaded = true; true
+            paymentMethod = get("payment_method").ifBlank { "mpesa" }
+            paymentStatus = get("payment_status").ifBlank { "pending" }
+            qrCodeValue = get("qr_code").ifBlank { null }
+            memberId = get("member_id").ifBlank { null }
+            membershipStart = get("membership_start").ifBlank { null }
+            membershipExpiry = get("membership_expiry").ifBlank { null }
+            isLoaded = true
+            true
         } catch (e: Exception) { profileSaveError = e.message ?: "Could not load saved member details."; isLoaded = true; false }
     }
 
