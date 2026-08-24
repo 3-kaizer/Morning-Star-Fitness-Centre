@@ -64,7 +64,7 @@ class AuthViewModel : ViewModel() {
             require(member.email.isNotBlank()) { "Email is required." }
             require(member.password.length >= 6) { "Password must be at least 6 characters." }
             require(member.fullName.isNotBlank()) { "Full name is required." }
-            require(paymentReference?.isNotBlank() == true) { "Verified payment reference is required." }
+            require(paymentReference?.isNotBlank() == true) { "Payment reference is required." }
 
             val authResult = auth.createUserWithEmailAndPassword(member.email.trim(), member.password).await()
             createdUser = authResult.user ?: throw Exception("Failed to create user account")
