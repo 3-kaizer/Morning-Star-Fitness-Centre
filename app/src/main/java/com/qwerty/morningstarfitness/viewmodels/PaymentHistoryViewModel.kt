@@ -2,7 +2,6 @@ package com.qwerty.morningstarfitness.viewmodels
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
@@ -20,69 +19,64 @@ class PaymentHistoryViewModel : ViewModel() {
 
     var entries by mutableStateOf<List<PaymentHistoryEntry>>(emptyList()); private set
     var isLoading by mutableStateOf(false); private set
+    var loadError by mutableStateOf<String?>(null); private set
 
     fun refresh() {
         val uid = auth.currentUser?.uid ?: return
-        isLoading = true
+        isLoading = true; loadError = null
         viewModelScope.launch {
             try {
-                val memberRef = database.reference.child("members").child(uid)
-                val paymentsSnapshot = memberRef.child("payments").get().await()
-                val legacySnapshot = memberRef.child("paymentHistory").get().await()
+                val memberSnapshot = database.reference.child("members").child(uid).get().await()
+                val memberId = memberSnapshot.child("memberId").getValue(String::class.java).orEmpty()
+                val memberName = memberSnapshot.child("fullName").getValue(String::class.java).orEmpty()
 
-                val unified = paymentsSnapshot.children.map { child ->
-                    val type = child.child("type").getValue(String::class.java).orEmpty()
-                    val planLabel = child.child("planLabel").getValue(String::class.java).orEmpty()
-                    val title = when {
-                        type == "membership_renewal" && planLabel.isNotBlank() -> "Membership renewal — $planLabel"
-                        type == "membership_registration" && planLabel.isNotBlank() -> "Membership registration — $planLabel"
-                        type == "membership_renewal" -> "Membership renewal"
-                        else -> "Membership registration"
-                    }
-                    val amount = child.child("amountKsh").getValue(Long::class.java)?.toInt()
-                        ?: child.child("amountKsh").getValue(Double::class.java)?.toInt()
-                        ?: 0
-                    val paidAt = child.child("paidAt").getValue(Long::class.java) ?: 0L
-                    val id = child.child("paymentId").getValue(String::class.java) ?: child.key.orEmpty()
-                    HistoryItem(id, title, amount, paidAt)
+                val dedicated = database.reference.child("payments").get().await().children
+                    .filter { it.child("memberUid").getValue(String::class.java) == uid || (memberId.isNotBlank() && it.child("memberId").getValue(String::class.java) == memberId) }
+                    .map { child -> toHistoryItem(child) }
+
+                // Backward compatibility for data created before the dedicated payments node.
+                val legacyPayments = memberSnapshot.child("payments").children.map { child -> toHistoryItem(child) }
+                val legacyRenewals = memberSnapshot.child("paymentHistory").children.mapNotNull { child ->
+                    if (child.child("purpose").getValue(String::class.java) != "membership_renewal") return@mapNotNull null
+                    HistoryItem(
+                        id = child.child("paymentId").getValue(String::class.java) ?: child.key.orEmpty(),
+                        title = "Membership renewal",
+                        amount = child.child("amountKsh").getValue(Long::class.java)?.toInt() ?: child.child("amountKsh").getValue(Double::class.java)?.toInt() ?: 0,
+                        paidAt = child.child("paidAt").getValue(Long::class.java) ?: 0L
+                    )
                 }
 
-                // Older app versions wrote renewals to paymentHistory. Keep them visible during migration.
-                val legacy = legacySnapshot.children.mapNotNull { child ->
-                    val purpose = child.child("purpose").getValue(String::class.java).orEmpty()
-                    if (purpose != "membership_renewal") return@mapNotNull null
-                    val amount = child.child("amountKsh").getValue(Long::class.java)?.toInt()
-                        ?: child.child("amountKsh").getValue(Double::class.java)?.toInt()
-                        ?: 0
-                    val paidAt = child.child("paidAt").getValue(Long::class.java) ?: 0L
-                    val id = child.child("paymentId").getValue(String::class.java) ?: child.key.orEmpty()
-                    HistoryItem(id, "Membership renewal", amount, paidAt)
-                }
-
-                entries = (unified + legacy)
+                entries = (dedicated + legacyPayments + legacyRenewals)
                     .distinctBy { it.id }
                     .sortedByDescending { it.paidAt }
                     .map { it.toEntry() }
-            } catch (_: Exception) {
-                entries = emptyList()
-            } finally {
-                isLoading = false
-            }
+            } catch (e: Exception) {
+                loadError = e.message ?: "Could not load payment history."
+            } finally { isLoading = false }
         }
     }
 
-    private data class HistoryItem(
-        val id: String,
-        val title: String,
-        val amount: Int,
-        val paidAt: Long
-    ) {
+    private fun toHistoryItem(child: com.google.firebase.database.DataSnapshot): HistoryItem {
+        val type = child.child("type").getValue(String::class.java).orEmpty()
+        val planLabel = child.child("planName").getValue(String::class.java)
+            ?: child.child("planLabel").getValue(String::class.java).orEmpty()
+        val title = when {
+            type == "membership_renewal" && planLabel.isNotBlank() -> "Membership renewal — $planLabel"
+            type == "membership_registration" && planLabel.isNotBlank() -> "Membership registration — $planLabel"
+            type == "shop_order" -> "Shop order payment"
+            type == "membership_renewal" -> "Membership renewal"
+            else -> "Membership registration"
+        }
+        val amount = child.child("amountKsh").getValue(Long::class.java)?.toInt()
+            ?: child.child("amountKsh").getValue(Double::class.java)?.toInt() ?: 0
+        val paidAt = child.child("paidAt").getValue(Long::class.java) ?: 0L
+        val id = child.child("paymentId").getValue(String::class.java) ?: child.key.orEmpty()
+        return HistoryItem(id, title, amount, paidAt)
+    }
+
+    private data class HistoryItem(val id: String, val title: String, val amount: Int, val paidAt: Long) {
         fun toEntry(): PaymentHistoryEntry {
-            val date = if (paidAt > 0) {
-                SimpleDateFormat("dd MMM yyyy, h:mm a", Locale.getDefault()).format(Date(paidAt))
-            } else {
-                "Date unavailable"
-            }
+            val date = if (paidAt > 0) SimpleDateFormat("dd MMM yyyy, h:mm a", Locale.getDefault()).format(Date(paidAt)) else "Date unavailable"
             return PaymentHistoryEntry(title, amount, date, id)
         }
     }
