@@ -6,7 +6,6 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.FirebaseDatabase
 import com.qwerty.morningstarfitness.ui.screens.payment.PaymentHistoryEntry
 import kotlinx.coroutines.launch
@@ -40,7 +39,9 @@ class PaymentHistoryViewModel : ViewModel() {
                         type == "membership_renewal" -> "Membership renewal"
                         else -> "Membership registration"
                     }
-                    val amount = child.child("amountKsh").getValue(Long::class.java)?.toInt() ?: child.child("amountKsh").getValue(Double::class.java)?.toInt() ?: 0
+                    val amount = child.child("amountKsh").getValue(Long::class.java)?.toInt()
+                        ?: child.child("amountKsh").getValue(Double::class.java)?.toInt()
+                        ?: 0
                     val paidAt = child.child("paidAt").getValue(Long::class.java) ?: 0L
                     val id = child.child("paymentId").getValue(String::class.java) ?: child.key.orEmpty()
                     HistoryItem(id, title, amount, paidAt)
@@ -50,20 +51,23 @@ class PaymentHistoryViewModel : ViewModel() {
                 val legacy = legacySnapshot.children.mapNotNull { child ->
                     val purpose = child.child("purpose").getValue(String::class.java).orEmpty()
                     if (purpose != "membership_renewal") return@mapNotNull null
-                    val amount = child.child("amountKsh").getValue(Long::class.java)?.toInt() ?: child.child("amountKsh").getValue(Double::class.java)?.toInt() ?: 0
+                    val amount = child.child("amountKsh").getValue(Long::class.java)?.toInt()
+                        ?: child.child("amountKsh").getValue(Double::class.java)?.toInt()
+                        ?: 0
                     val paidAt = child.child("paidAt").getValue(Long::class.java) ?: 0L
                     val id = child.child("paymentId").getValue(String::class.java) ?: child.key.orEmpty()
                     HistoryItem(id, "Membership renewal", amount, paidAt)
                 }
 
-                val merged = (unified + legacy)
+                entries = (unified + legacy)
                     .distinctBy { it.id }
                     .sortedByDescending { it.paidAt }
-
-                entries = merged.map { it.toEntry() }
+                    .map { it.toEntry() }
             } catch (_: Exception) {
                 entries = emptyList()
-            } finally { isLoading = false }
+            } finally {
+                isLoading = false
+            }
         }
     }
 
