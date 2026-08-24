@@ -1,0 +1,26 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Project artifacts
+MorningStarfitness.zip
+
+# IDE specific
+.idea/planningMode.xml
+
+# Local M-Pesa Server
+mpesa-server/node_modules/
+mpesa-server/.env
+mpesa-server/service-account.json

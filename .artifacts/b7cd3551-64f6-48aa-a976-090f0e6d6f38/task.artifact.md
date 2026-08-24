@@ -1,0 +1,24 @@
+# Tasks - Morning Star Fitness M-Pesa Restructure
+
+- [x] Project Cleanup & Environment Setup
+    - [x] Remove legacy `functions` folder
+    - [x] Remove Firebase Functions dependencies from Android `build.gradle.kts`
+    - [x] Update `.gitignore` for `.env` files
+- [x] Implement Local Node.js Backend (`mpesa-server`)
+    - [x] Create `package.json` with dependencies
+    - [x] Create `index.js` with STK Push and Callback endpoints
+    - [x] Create `.env.example` template
+- [x] Refactor Android ViewModels
+    - [x] Replace Cloud Functions calls with local API calls (OkHttp)
+    - [x] Implement Membership Renewal logic in `MemberViewModel`
+    - [x] Implement Shop Delivery logic in `ShopViewModel`
+- [x] Upgrade Android UI
+    - [x] Redesign `HomeScreen` dashboard (Status, Days Left, Stats)
+    - [x] Update `PaymentScreen` (M-Pesa Only, Sandbox UI)
+    - [x] Update `ShopScreen` (Realistic Products & Delivery Address)
+- [ ] Firebase Configuration
+    - [ ] Update `database.rules.json` for security
+- [/] Final Build & Verification
+    - [x] Android Gradle build (Success)
+    - [ ] Backend health check (Requires `npm install`)
+    - [ ] Integration testing (ngrok setup)
