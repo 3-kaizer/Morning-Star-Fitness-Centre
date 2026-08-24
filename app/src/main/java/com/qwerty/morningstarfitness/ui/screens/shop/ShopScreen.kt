@@ -1,6 +1,5 @@
 package com.qwerty.morningstarfitness.ui.screens.shop
 
-import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,7 +46,6 @@ import coil3.ImageLoader
 import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import com.qwerty.morningstarfitness.models.ProductModel
-import com.qwerty.morningstarfitness.models.defaultProducts
 import com.qwerty.morningstarfitness.ui.components.BrandMark
 import com.qwerty.morningstarfitness.ui.components.GhostButton
 import com.qwerty.morningstarfitness.ui.components.Heading
@@ -70,7 +68,6 @@ fun ShopScreen(shopViewModel: ShopViewModel, memberViewModel: MemberViewModel, p
     val imageLoader = remember(context) { RemoteImageLoader.create(context) }
 
     // Warm the shared Coil disk/memory cache while the shop screen is opening.
-    // This makes the product grid much less likely to wait on a network fetch.
     LaunchedEffect(imageLoader) {
         RemoteImageLoader.preload(context, imageLoader, shopViewModel.products.map { it.imageUrl })
     }
