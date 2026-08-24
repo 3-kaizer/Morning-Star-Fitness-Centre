@@ -8,13 +8,13 @@ import com.google.firebase.database.FirebaseDatabase
 import com.qwerty.morningstarfitness.security.hashSecurityAnswer
 import com.qwerty.morningstarfitness.ui.screens.registration.MemberFormState
 import com.qwerty.morningstarfitness.models.MembershipPlanModel
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 
 class AuthViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
@@ -89,12 +89,13 @@ class AuthViewModel : ViewModel() {
                 "membershipStart" to membershipStart,
                 "membershipExpiry" to membershipExpiry,
                 "paymentStatus" to "paid",
-                "paymentMethod" to "mpesa_daraja_sandbox",
+                "paymentMethod" to "sandbox_demo",
                 "lastPaymentId" to paymentId,
                 "lastPaymentAt" to now,
                 "securityQuestion" to member.securityQuestion.trim(),
                 "securityAnswer" to hashSecurityAnswer(member.securityAnswer),
-                "registeredAt" to now
+                "registeredAt" to now,
+                "memberRecordVersion" to 2
             )
 
             database.reference.child("members").child(uid).setValue(memberData).await()
@@ -108,9 +109,9 @@ class AuthViewModel : ViewModel() {
                     "planLabel" to plan.label,
                     "amountKsh" to plan.priceKsh,
                     "status" to "paid",
-                    "method" to "mpesa_daraja_sandbox",
+                    "method" to "sandbox_demo",
                     "paidAt" to now,
-                    "environment" to "sandbox",
+                    "environment" to "presentation",
                     "membershipStart" to membershipStart,
                     "membershipExpiry" to membershipExpiry
                 )
