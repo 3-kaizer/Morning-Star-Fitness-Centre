@@ -69,7 +69,7 @@ fun ShopScreen(shopViewModel: ShopViewModel, memberViewModel: MemberViewModel, p
 
     // Warm the shared Coil disk/memory cache while the shop screen is opening.
     LaunchedEffect(imageLoader) {
-        RemoteImageLoader.preload(context, imageLoader, shopViewModel.products.map { it.imageUrl })
+        RemoteImageLoader.preload(context, imageLoader, shopViewModel.products.mapNotNull { it.imageUrl })
     }
 
     Box(Modifier.fillMaxSize().background(PulseColors.Background).padding(20.dp), contentAlignment = Alignment.TopCenter) {
