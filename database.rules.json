@@ -7,7 +7,33 @@
         "attendance": {
           ".read": "auth != null && auth.uid == $uid",
           ".write": "auth != null && auth.uid == $uid"
+        },
+        "payments": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "paymentHistory": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
         }
+      }
+    },
+    "payments": {
+      "$paymentId": {
+        ".read": "auth != null && (data.child('memberUid').val() == auth.uid || newData.child('memberUid').val() == auth.uid)",
+        ".write": "auth != null && newData.child('memberUid').val() == auth.uid"
+      }
+    },
+    "attendance": {
+      "$memberId": {
+        ".read": "auth != null && root.child('members').child(auth.uid).child('memberId').val() == $memberId",
+        ".write": "auth != null && root.child('members').child(auth.uid).child('memberId').val() == $memberId"
+      }
+    },
+    "notifications": {
+      "$memberId": {
+        ".read": "auth != null && root.child('members').child(auth.uid).child('memberId').val() == $memberId",
+        ".write": "auth != null && root.child('members').child(auth.uid).child('memberId').val() == $memberId"
       }
     },
     "orders": {
