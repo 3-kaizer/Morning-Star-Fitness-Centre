@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.FirebaseDatabase
 import com.qwerty.morningstarfitness.data.MemberDataStore
 import com.qwerty.morningstarfitness.models.MembershipPlanModel
@@ -41,7 +42,7 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun stableMemberId(uid: String): String = "MSFC-" + uid.take(8).uppercase()
 
-    private suspend fun migrateExistingMember(snapshot: com.google.firebase.database.DataSnapshot): String {
+    private suspend fun migrateExistingMember(snapshot: DataSnapshot): String {
         val uid = auth.currentUser?.uid ?: return snapshot.child("memberId").getValue(String::class.java).orEmpty()
         val existing = snapshot.child("memberId").getValue(String::class.java).orEmpty()
         val migratedId = when {
@@ -49,11 +50,11 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
             existing.isNotBlank() -> "MSFC-" + existing.removePrefix("MSF-").take(8).uppercase().ifBlank { uid.take(8).uppercase() }
             else -> stableMemberId(uid)
         }
-        snapshot.ref.updateChildren(mapOf("memberId" to migratedId, "memberRecordVersion" to 2)).await()
+        snapshot.ref.updateChildren(mapOf("memberId" to migratedId, "memberRecordVersion" to 3)).await()
         return migratedId
     }
 
-    private fun applySnapshot(s: com.google.firebase.database.DataSnapshot, normalizedMemberId: String? = null) {
+    private fun applySnapshot(s: DataSnapshot, normalizedMemberId: String? = null) {
         memberForm = MemberFormState(s.child("fullName").getValue(String::class.java).orEmpty(), s.child("phone").getValue(String::class.java).orEmpty(), s.child("email").getValue(String::class.java).orEmpty(), s.child("dob").getValue(String::class.java).orEmpty(), s.child("gender").getValue(String::class.java).orEmpty(), s.child("emergencyContact").getValue(String::class.java).orEmpty(), s.child("securityQuestion").getValue(String::class.java).orEmpty(), s.child("securityAnswer").getValue(String::class.java).orEmpty())
         qrCodeValue = s.child("qrCode").getValue(String::class.java)
         memberId = normalizedMemberId ?: s.child("memberId").getValue(String::class.java)
@@ -65,51 +66,92 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         selectedPlan = if (planId.isNullOrBlank()) null else MembershipPlanModel(planId, s.child("planLabel").getValue(String::class.java).orEmpty(), s.child("planPrice").getValue(Long::class.java)?.toInt() ?: 0, s.child("planDuration").getValue(Long::class.java)?.toInt() ?: 0)
     }
 
+    private suspend fun migrateLegacyRecords(uid: String, memberId: String, memberSnapshot: DataSnapshot) {
+        val root = database.reference
+        val memberName = memberSnapshot.child("fullName").getValue(String::class.java).orEmpty()
+        val payments = memberSnapshot.child("payments")
+        for (child in payments.children) {
+            val paymentId = child.child("paymentId").getValue(String::class.java) ?: child.key ?: continue
+            val existing = root.child("payments").child(paymentId).get().await()
+            if (!existing.exists()) {
+                val data = child.value as? Map<*, *> ?: emptyMap<String, Any?>()
+                val normalized = data.filterKeys { it is String }.mapKeys { it.key as String }.toMutableMap()
+                normalized["paymentId"] = paymentId
+                normalized["memberId"] = memberId
+                normalized["memberUid"] = uid
+                normalized["memberName"] = memberName
+                root.child("payments").child(paymentId).setValue(normalized).await()
+            }
+        }
+
+        val legacyHistory = memberSnapshot.child("paymentHistory")
+        for (child in legacyHistory.children) {
+            val paymentId = child.child("paymentId").getValue(String::class.java) ?: child.key ?: continue
+            val existing = root.child("payments").child(paymentId).get().await()
+            if (!existing.exists()) {
+                root.child("payments").child(paymentId).setValue(mapOf(
+                    "paymentId" to paymentId,
+                    "memberId" to memberId,
+                    "memberUid" to uid,
+                    "memberName" to memberName,
+                    "paymentReference" to child.child("referenceId").getValue(String::class.java),
+                    "mpesaReceipt" to child.child("receipt").getValue(String::class.java),
+                    "type" to "membership_renewal",
+                    "amountKsh" to (child.child("amountKsh").getValue(Long::class.java)?.toInt() ?: 0),
+                    "status" to child.child("status").getValue(String::class.java) ?: "paid",
+                    "method" to child.child("method").getValue(String::class.java) ?: "sandbox_demo",
+                    "paidAt" to (child.child("paidAt").getValue(Long::class.java) ?: 0L),
+                    "environment" to child.child("environment").getValue(String::class.java) ?: "presentation"
+                )).await()
+            }
+        }
+
+        val legacyAttendance = memberSnapshot.child("attendance")
+        for (child in legacyAttendance.children) {
+            val dayKey = child.key ?: continue
+            val attendanceRef = root.child("attendance").child(memberId).child(dayKey)
+            if (!attendanceRef.get().await().exists()) {
+                attendanceRef.setValue(mapOf(
+                    "memberId" to memberId,
+                    "memberUid" to uid,
+                    "date" to child.child("date").getValue(String::class.java).orEmpty(),
+                    "checkIn" to child.child("checkIn").getValue(String::class.java).orEmpty(),
+                    "checkOut" to child.child("checkOut").getValue(String::class.java),
+                    "status" to "present",
+                    "timestamp" to (child.child("timestamp").getValue(Long::class.java) ?: 0L)
+                )).await()
+            }
+        }
+    }
+
     suspend fun refreshFromFirebase(): Boolean {
         val uid = auth.currentUser?.uid ?: return false
         return try {
             var snapshot = database.reference.child("members").child(uid).get().await()
-            if (!snapshot.exists()) {
-                memberForm = null; memberId = null; qrCodeValue = null; selectedPlan = null; isLoaded = true; return false
-            }
+            if (!snapshot.exists()) { memberForm = null; memberId = null; qrCodeValue = null; selectedPlan = null; isLoaded = true; return false }
             val normalizedId = migrateExistingMember(snapshot)
             snapshot = database.reference.child("members").child(uid).get().await()
-            applySnapshot(snapshot, normalizedId); persist(); isLoaded = true; true
+            applySnapshot(snapshot, normalizedId); persist(); migrateLegacyRecords(uid, normalizedId, snapshot); isLoaded = true; true
         } catch (e: Exception) { profileSaveError = e.message ?: "Could not refresh member details."; isLoaded = true; false }
     }
 
-    /**
-     * Restores the remembered member even when Firebase Auth is signed out.
-     * This is intentional: the member's QR is a persistent gym-entry credential
-     * displayed at the physical entrance scanner. A normal logout must not erase it.
-     */
     suspend fun loadLocalMember(): Boolean {
         return try {
             val preferences = store.read()
             fun get(key: String): String = preferences.entries.firstOrNull { it.key.name == key }?.value.orEmpty()
-            val savedUid = get("auth_uid")
-            val currentUid = auth.currentUser?.uid
-            if (currentUid != null && savedUid != currentUid) {
-                store.clear(); isLoaded = true; return false
-            }
+            val savedUid = get("auth_uid"); val currentUid = auth.currentUser?.uid
+            if (currentUid != null && savedUid.isNotBlank() && savedUid != currentUid) { store.clear(); isLoaded = true; return false }
             val name = get("full_name")
             if (name.isBlank()) { isLoaded = true; return false }
             memberForm = MemberFormState(name, get("phone"), get("email"), get("dob"), get("gender"), get("emergency_contact"), get("security_question"), get("security_answer"))
             val label = get("selected_plan_label")
             selectedPlan = if (label.isBlank()) null else MembershipPlanModel(get("selected_plan_id"), label, get("selected_plan_price").toIntOrNull() ?: 0, get("selected_plan_duration").toIntOrNull() ?: 0)
-            paymentMethod = get("payment_method").ifBlank { "mpesa" }
-            paymentStatus = get("payment_status").ifBlank { "pending" }
-            qrCodeValue = get("qr_code").ifBlank { null }
-            memberId = get("member_id").ifBlank { null }
-            membershipStart = get("membership_start").ifBlank { null }
-            membershipExpiry = get("membership_expiry").ifBlank { null }
-            isLoaded = true
-            true
+            paymentMethod = get("payment_method").ifBlank { "mpesa" }; paymentStatus = get("payment_status").ifBlank { "pending" }; qrCodeValue = get("qr_code").ifBlank { null }; memberId = get("member_id").ifBlank { null }; membershipStart = get("membership_start").ifBlank { null }; membershipExpiry = get("membership_expiry").ifBlank { null }; isLoaded = true; true
         } catch (e: Exception) { profileSaveError = e.message ?: "Could not load saved member details."; isLoaded = true; false }
     }
 
     fun syncWithFirebase() { viewModelScope.launch { refreshFromFirebase() } }
-    private fun restoreSavedMember() { viewModelScope.launch { loadLocalMember(); refreshFromFirebase() } }
+    private fun restoreSavedMember() { viewModelScope.launch { loadLocalMember(); if (auth.currentUser != null) refreshFromFirebase() } }
     fun updateMemberForm(form: MemberFormState) { memberForm = form; persist() }
     fun updateSelectedPlan(plan: MembershipPlanModel) { selectedPlan = plan; persist() }
     fun updatePaymentMethod(method: String) { paymentMethod = method; persist() }
