@@ -1,7 +1,9 @@
 package com.qwerty.morningstarfitness.viewmodels
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
@@ -18,7 +20,7 @@ class NotificationViewModel : ViewModel() {
     private val database = FirebaseDatabase.getInstance("https://morning-star-6c5e6-default-rtdb.firebaseio.com")
 
     var notifications by mutableStateOf<List<NotificationItem>>(emptyList()); private set
-    var unreadCount by mutableStateOf(0); private set
+    var unreadCount by mutableIntStateOf(0); private set
     var isLoading by mutableStateOf(false); private set
     var loadError by mutableStateOf<String?>(null); private set
 
@@ -52,7 +54,7 @@ class NotificationViewModel : ViewModel() {
         val expiry = member.child("membershipExpiry").getValue(String::class.java) ?: return
         val expiryDate = runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(expiry) }.getOrNull() ?: return
         val daysLeft = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(expiryDate.time - System.currentTimeMillis()).toInt()
-        if (daysLeft !in 0..5) return
+        if (!(daysLeft in 0..5)) return
         val key = "expiry_$expiry"
         val ref = database.reference.child("notifications").child(memberId).child(key)
         if (!ref.get().await().exists()) {

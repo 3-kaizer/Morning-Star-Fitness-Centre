@@ -3,6 +3,7 @@ package com.qwerty.morningstarfitness.ui.screens.attendance
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -109,7 +110,7 @@ fun AttendanceScreen(entries: List<AttendanceEntry>, onBack: () -> Unit) {
 
 @Composable
 private fun BoxIcon() {
-    androidx.compose.foundation.layout.Box(
+    Box(
         Modifier.size(48.dp).background(PulseColors.SurfaceAlt, CircleShape),
         contentAlignment = Alignment.Center
     ) {

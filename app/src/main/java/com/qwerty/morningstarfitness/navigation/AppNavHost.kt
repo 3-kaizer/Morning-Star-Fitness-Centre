@@ -54,12 +54,14 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
     fun firstName(): String = memberViewModel.memberForm?.fullName?.split(" ")?.firstOrNull()?.ifBlank { "there" } ?: "there"
     fun goHome(scope: kotlinx.coroutines.CoroutineScope) {
         scope.launch {
-            val memberLoaded = memberViewModel.refreshFromFirebase()
-            if (!memberLoaded) {
+            val status = memberViewModel.refreshFromFirebase()
+            if (status == MemberRefreshStatus.NOT_FOUND) {
                 authViewModel.signOut()
                 navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
                 return@launch
             }
+            // If SUCCESS or FAILURE (transient), we proceed to home. 
+            // If FAILURE, we rely on cached data already loaded in MemberViewModel init.
             attendanceViewModel.fetchAttendanceHistory(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh()
             navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
         }
@@ -113,8 +115,8 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
                     if (success) scope.launch {
                         val currentForm = memberViewModel.memberForm ?: return@launch
                         memberViewModel.prepareMembership(plan); val qr = memberViewModel.generateQrCode(forceNew = true)
-                        if (authViewModel.createUser(currentForm, plan, qr, memberViewModel.memberId, memberViewModel.membershipStart, memberViewModel.membershipExpiry, paymentReference = reference, mpesaReceipt = paymentViewModel.mpesaReceipt)) {
-                            memberViewModel.completePaymentLocally(plan); paymentHistoryViewModel.refresh(); notificationViewModel.refresh(); navController.navigate(ROUTE_SUCCESS)
+                        if (authViewModel.createUser(currentForm, plan, qr, memberId = memberViewModel.memberId, membershipStart = memberViewModel.membershipStart, membershipExpiry = memberViewModel.membershipExpiry, paymentReference = reference, mpesaReceipt = paymentViewModel.mpesaReceipt)) {
+                            memberViewModel.completePaymentLocally(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh(); navController.navigate(ROUTE_SUCCESS)
                         }
                     }
                 }

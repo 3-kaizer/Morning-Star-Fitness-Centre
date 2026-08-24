@@ -23,6 +23,7 @@ import java.util.Calendar
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.milliseconds
 
 class MpesaPaymentViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
@@ -50,8 +51,8 @@ class MpesaPaymentViewModel : ViewModel() {
                 val body = gson.toJson(mapOf("phone" to phone, "amount" to amount, "purpose" to purpose, "referenceId" to referenceId))
                 val request = Request.Builder().url(BuildConfig.MPESA_SERVER_URL + "mpesa/stkpush").post(body.toRequestBody("application/json".toMediaType())).build()
                 val response = http.newCall(request).execute(); val responseText = response.body?.string().orEmpty()
-                if (!response.isSuccessful) throw Exception(runCatching { gson.fromJson(responseText, JsonObject::class.java).get("error")?.asString }.getOrNull() ?: "M-Pesa server rejected the request.")
-                val accepted = gson.fromJson(responseText, JsonObject::class.java).get("accepted")?.asBoolean == true
+                if (!response.isSuccessful) throw Exception(runCatching { gson.fromJson(responseText, JsonObject::class.java)["error"]?.asString }.getOrNull() ?: "M-Pesa server rejected the request.")
+                val accepted = gson.fromJson(responseText, JsonObject::class.java)["accepted"]?.asBoolean == true
                 if (!accepted) throw Exception("M-Pesa STK Push was not accepted.")
                 paymentStatus = "pending"
                 if (!waitForVerifiedPayment(referenceId)) { onComplete(false); return@launch }
@@ -65,7 +66,7 @@ class MpesaPaymentViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 paymentStatus = "sandbox_pending"
-                delay(1200)
+                delay(1200.milliseconds)
                 mpesaReceipt = "SANDBOX-${UUID.randomUUID().toString().replace("-", "").take(10).uppercase()}"
                 paymentStatus = "paid"
                 completeVerifiedPayment(amount, purpose, referenceId, planId, planLabel, planDuration, onComplete)
@@ -130,10 +131,10 @@ class MpesaPaymentViewModel : ViewModel() {
             val request = Request.Builder().url(BuildConfig.MPESA_SERVER_URL + "mpesa/status/$encoded").get().build()
             try {
                 val response = http.newCall(request).execute(); val text = response.body?.string().orEmpty()
-                if (!response.isSuccessful) continue
-                val json = gson.fromJson(text, JsonObject::class.java); val status = json.get("status")?.asString
-                if (status == "paid") { mpesaReceipt = json.get("mpesaReceiptNumber")?.takeIf { !it.isJsonNull }?.asString; paymentStatus = "paid"; return true }
-                if (status == "failed") { errorMessage = json.get("resultDesc")?.takeIf { !it.isJsonNull }?.asString ?: "M-Pesa payment was cancelled or failed."; paymentStatus = "failed"; return false }
+                if (!response.isSuccessful) return@repeat
+                val json = gson.fromJson(text, JsonObject::class.java); val status = json["status"]?.asString
+                if (status == "paid") { mpesaReceipt = json["mpesaReceiptNumber"]?.takeIf { !it.isJsonNull }?.asString; paymentStatus = "paid"; return true }
+                if (status == "failed") { errorMessage = json["resultDesc"]?.takeIf { !it.isJsonNull }?.asString ?: "M-Pesa payment was cancelled or failed."; paymentStatus = "failed"; return false }
             } catch (_: Exception) { }
         }
         errorMessage = "M-Pesa confirmation timed out. Check the phone and try again."; paymentStatus = "failed"; return false

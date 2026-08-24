@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -26,6 +27,7 @@ import com.qwerty.morningstarfitness.ui.components.GhostButton
 import com.qwerty.morningstarfitness.ui.components.Heading
 import com.qwerty.morningstarfitness.ui.components.QrCodeDisplay
 import com.qwerty.morningstarfitness.ui.theme.PulseColors
+import java.util.Calendar
 
 @Composable
 fun QrEntryScreen(
@@ -68,6 +70,8 @@ fun QrEntryScreen(
                         }
                     }
                     else -> {
+                        GymStatusBanner()
+                        Spacer(Modifier.height(16.dp))
                         Row(Modifier.fillMaxWidth().background(PulseColors.Accent.copy(alpha = .1f), RoundedCornerShape(12.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.QrCodeScanner, null, tint = PulseColors.Accent, modifier = Modifier.size(20.dp))
                             Column(Modifier.padding(start = 9.dp)) {
@@ -98,6 +102,46 @@ fun QrEntryScreen(
             Spacer(Modifier.height(12.dp))
             GhostButton("Back to dashboard", onBack, Modifier.fillMaxWidth())
         }
+    }
+}
+
+@Composable
+private fun GymStatusBanner() {
+    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    val isOpen = hour in 6..21 // Open 6 AM to 10 PM (22:00)
+    val statusText = if (isOpen) "GYM IS OPEN" else "GYM IS CLOSED"
+    val subText = if (isOpen) "Closes at 10:00 PM" else "Opens tomorrow at 6:00 AM"
+    val color = if (isOpen) Color(0xFF4CAF50) else PulseColors.Error
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(color.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+            .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .background(color, CircleShape)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = statusText,
+                color = color,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+        }
+        Text(
+            text = subText,
+            color = PulseColors.TextMuted,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 

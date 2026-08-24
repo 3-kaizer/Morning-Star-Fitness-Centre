@@ -1,6 +1,7 @@
 package com.qwerty.morningstarfitness.viewmodels
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,7 +29,6 @@ class PaymentHistoryViewModel : ViewModel() {
             try {
                 val memberSnapshot = database.reference.child("members").child(uid).get().await()
                 val memberId = memberSnapshot.child("memberId").getValue(String::class.java).orEmpty()
-                val memberName = memberSnapshot.child("fullName").getValue(String::class.java).orEmpty()
 
                 val dedicated = database.reference.child("payments").get().await().children
                     .filter { it.child("memberUid").getValue(String::class.java) == uid || (memberId.isNotBlank() && it.child("memberId").getValue(String::class.java) == memberId) }

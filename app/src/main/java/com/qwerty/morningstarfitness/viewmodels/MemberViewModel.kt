@@ -20,6 +20,8 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
+enum class MemberRefreshStatus { SUCCESS, NOT_FOUND, FAILURE }
+
 class MemberViewModel(application: Application) : AndroidViewModel(application) {
     private val store = MemberDataStore(application)
     private val auth = FirebaseAuth.getInstance()
@@ -75,7 +77,8 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
             val existing = root.child("payments").child(paymentId).get().await()
             if (!existing.exists()) {
                 val data = child.value as? Map<*, *> ?: emptyMap<String, Any?>()
-                val normalized = data.filterKeys { it is String }.mapKeys { it.key as String }.toMutableMap()
+                val normalized = mutableMapOf<String, Any?>()
+                data.forEach { (k, v) -> if (k is String) normalized[k] = v }
                 normalized["paymentId"] = paymentId
                 normalized["memberId"] = memberId
                 normalized["memberUid"] = uid
@@ -89,20 +92,20 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
             val paymentId = child.child("paymentId").getValue(String::class.java) ?: child.key ?: continue
             val existing = root.child("payments").child(paymentId).get().await()
             if (!existing.exists()) {
-                root.child("payments").child(paymentId).setValue(mapOf(
-                    "paymentId" to paymentId,
-                    "memberId" to memberId,
-                    "memberUid" to uid,
-                    "memberName" to memberName,
-                    "paymentReference" to child.child("referenceId").getValue(String::class.java),
-                    "mpesaReceipt" to child.child("receipt").getValue(String::class.java),
-                    "type" to "membership_renewal",
-                    "amountKsh" to (child.child("amountKsh").getValue(Long::class.java)?.toInt() ?: 0),
-                    "status" to child.child("status").getValue(String::class.java) ?: "paid",
-                    "method" to child.child("method").getValue(String::class.java) ?: "sandbox_demo",
-                    "paidAt" to (child.child("paidAt").getValue(Long::class.java) ?: 0L),
-                    "environment" to child.child("environment").getValue(String::class.java) ?: "presentation"
-                )).await()
+                val normalized = mutableMapOf<String, Any?>()
+                normalized["paymentId"] = paymentId
+                normalized["memberId"] = memberId
+                normalized["memberUid"] = uid
+                normalized["memberName"] = memberName
+                normalized["paymentReference"] = child.child("referenceId").getValue(String::class.java)
+                normalized["mpesaReceipt"] = child.child("receipt").getValue(String::class.java)
+                normalized["type"] = "membership_renewal"
+                normalized["amountKsh"] = child.child("amountKsh").getValue(Long::class.java)?.toInt() ?: 0
+                normalized["status"] = child.child("status").getValue(String::class.java) ?: "paid"
+                normalized["method"] = child.child("method").getValue(String::class.java) ?: "sandbox_demo"
+                normalized["paidAt"] = child.child("paidAt").getValue(Long::class.java) ?: 0L
+                normalized["environment"] = child.child("environment").getValue(String::class.java) ?: "presentation"
+                root.child("payments").child(paymentId).setValue(normalized).await()
             }
         }
 
@@ -111,28 +114,35 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
             val dayKey = child.key ?: continue
             val attendanceRef = root.child("attendance").child(memberId).child(dayKey)
             if (!attendanceRef.get().await().exists()) {
-                attendanceRef.setValue(mapOf(
-                    "memberId" to memberId,
-                    "memberUid" to uid,
-                    "date" to child.child("date").getValue(String::class.java).orEmpty(),
-                    "checkIn" to child.child("checkIn").getValue(String::class.java).orEmpty(),
-                    "checkOut" to child.child("checkOut").getValue(String::class.java),
-                    "status" to "present",
-                    "timestamp" to (child.child("timestamp").getValue(Long::class.java) ?: 0L)
-                )).await()
+                val normalized = mutableMapOf<String, Any?>()
+                normalized["memberId"] = memberId
+                normalized["memberUid"] = uid
+                normalized["date"] = child.child("date").getValue(String::class.java).orEmpty()
+                normalized["checkIn"] = child.child("checkIn").getValue(String::class.java).orEmpty()
+                normalized["checkOut"] = child.child("checkOut").getValue(String::class.java)
+                normalized["status"] = "present"
+                normalized["timestamp"] = child.child("timestamp").getValue(Long::class.java) ?: 0L
+                attendanceRef.setValue(normalized).await()
             }
         }
     }
 
-    suspend fun refreshFromFirebase(): Boolean {
-        val uid = auth.currentUser?.uid ?: return false
+    suspend fun refreshFromFirebase(): MemberRefreshStatus {
+        val uid = auth.currentUser?.uid ?: return MemberRefreshStatus.FAILURE
         return try {
             var snapshot = database.reference.child("members").child(uid).get().await()
-            if (!snapshot.exists()) { memberForm = null; memberId = null; qrCodeValue = null; selectedPlan = null; isLoaded = true; return false }
+            if (!snapshot.exists()) { 
+                memberForm = null; memberId = null; qrCodeValue = null; selectedPlan = null; isLoaded = true
+                return MemberRefreshStatus.NOT_FOUND 
+            }
             val normalizedId = migrateExistingMember(snapshot)
             snapshot = database.reference.child("members").child(uid).get().await()
-            applySnapshot(snapshot, normalizedId); persist(); migrateLegacyRecords(uid, normalizedId, snapshot); isLoaded = true; true
-        } catch (e: Exception) { profileSaveError = e.message ?: "Could not refresh member details."; isLoaded = true; false }
+            applySnapshot(snapshot, normalizedId); persist(); migrateLegacyRecords(uid, normalizedId, snapshot); isLoaded = true
+            MemberRefreshStatus.SUCCESS
+        } catch (e: Exception) { 
+            profileSaveError = e.message ?: "Could not refresh member details."; isLoaded = true
+            MemberRefreshStatus.FAILURE 
+        }
     }
 
     suspend fun loadLocalMember(): Boolean {
@@ -158,7 +168,7 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
     fun updateProfile(form: MemberFormState, onResult: (Boolean, String) -> Unit = { _, _ -> }) { profileSaveError = null; val uid = auth.currentUser?.uid; if (uid == null) { onResult(false, "You are not signed in."); return }; viewModelScope.launch { try { database.reference.child("members").child(uid).updateChildren(mapOf("fullName" to form.fullName.trim(), "phone" to form.phone.trim(), "email" to form.email.trim(), "dob" to form.dob, "gender" to form.gender, "emergencyContact" to form.emergencyContact.trim())).await(); refreshFromFirebase(); onResult(true, "Profile updated successfully.") } catch (e: Exception) { profileSaveError = e.message ?: "Could not save profile."; onResult(false, profileSaveError ?: "Could not save profile.") } } }
     fun prepareMembership(plan: MembershipPlanModel) { val now = System.currentTimeMillis(); val calendar = Calendar.getInstance(); membershipStart = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now)); calendar.timeInMillis = now; calendar.add(Calendar.MONTH, plan.durationMonths); membershipExpiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time); memberId = "MSFC-" + UUID.randomUUID().toString().take(6).uppercase(); persist() }
     fun generateQrCode(forceNew: Boolean = false): String { val existing = qrCodeValue?.takeIf { it.isNotBlank() }; if (!forceNew && existing != null) return existing; val value = "GYM-" + UUID.randomUUID().toString(); qrCodeValue = value; persist(); return value }
-    fun completePaymentLocally(plan: MembershipPlanModel) { paymentStatus = "paid"; persist() }
+    fun completePaymentLocally() { paymentStatus = "paid"; persist() }
     fun ensureMembershipQr(): String? = qrCodeValue
     fun getMembershipStatus(): String { if (selectedPlan == null) return "No Plan"; val expiry = membershipExpiry ?: return "Pending"; return if (isExpired(expiry)) "Expired" else "Active" }
     private fun isExpired(value: String): Boolean = try { val expiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(value) ?: return true; val today = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.time; expiry.before(today) } catch (_: Exception) { true }
