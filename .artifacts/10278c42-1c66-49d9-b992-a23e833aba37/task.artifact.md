@@ -1,15 +1,10 @@
-- [x] ViewModel Enhancements
-    - [x] Add `visitsThisMonth` property to `AttendanceViewModel`
-    - [x] Refactor `fetchAttendanceHistory` for better state management
-- [x] UI Components Redesign
-    - [x] Implement `AttendanceHero` component
-    - [x] Implement `TimelineItem` component
-    - [x] Implement `AttendanceShimmer` / Loading state
-- [x] Screen Integration
-    - [x] Update `AttendanceScreen.kt` with new layout
-    - [x] Add `PullToRefreshBox` support
-- [x] Navigation Wiring
-    - [x] Update `AppNavHost.kt` to pass necessary states
-- [x] Final Verification
-    - [x] Verify stats calculation
-    - [x] Verify UI aesthetics and timeline connectivity
+- [ ] Build Configuration
+    - [ ] Update `build.gradle.kts` with Cloudinary fields
+- [ ] Upload Service
+    - [ ] Create `CloudinaryUploader.kt` utility
+- [ ] UI Integration
+    - [ ] Update `ProfileScreen.kt` UI (remove old fields, add loading state)
+    - [ ] Integrate automatic upload in `ProfileScreen.kt`
+- [ ] Final Verification
+    - [ ] Test gallery pick + automatic upload
+    - [ ] Verify profile save with new URL

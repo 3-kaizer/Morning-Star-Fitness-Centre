@@ -1,33 +1,24 @@
-# Attendance History Overhaul Walkthrough
+# Automatic Cloudinary Upload Walkthrough
 
-I have completely redesigned the Attendance History experience to align with the premium "Morning Star" brand and added full integration with real-time data states.
+I have replaced the manual profile image URL field with a seamless **Automatic Cloudinary Upload** flow. Members can now update their profile pictures by simply selecting a photo from their device.
 
 ## Key Improvements
 
-### 1. New Activity Hero
-The screen now opens with a vibrant, gradient-styled hero section that highlights your fitness consistency:
-- **Monthly Progress**: Shows exactly how many visits you've made in the current month (e.g., "August").
-- **Lifetime Stats**: Displays your total gym visits and your current membership rank.
+### 1. Seamless Image Upload
+- **Trigger:** Tapping the camera icon on the profile screen opens the device gallery.
+- **Process:** As soon as an image is selected, the app automatically uploads it to your Cloudinary account (`chxq0j6j`) using the `android` unsigned preset.
+- **Feedback:** A loading spinner appears over the profile photo while the upload is in progress, preventing multiple taps.
 
-### 2. Activity Timeline View
-Replaced the basic cards with a modern **Timeline UI**:
-- **Connected History**: Each visit is connected by a vertical timeline line, showing a continuous fitness journey.
-- **Check-in/Out Icons**: Visual markers for entry (lime icon) and exit (accent icon).
-- **Time Formatting**: Precise "Checked in at" and "Checked out at" labels for every visit.
+### 2. Cleaner UI
+- **Removed Workaround:** The "Cloudinary Integration" section and the "Profile image URL" text field have been removed.
+- **Modern Experience:** The app now behaves like a professional production application where image hosting is handled automatically in the background.
 
-### 3. Integrated Real-time States
-The screen is now fully responsive to the data lifecycle:
-- **Shimmer Loading**: A polished loading state that mimics the timeline structure while data is being fetched.
-- **Pull-to-Refresh**: Easily refresh your history by swiping down.
-- **Error & Empty States**: Beautifully designed views for when there's a connection issue or no visits yet, including a "Retry" button.
-
-### 4. Technical Integration
-- Added `visitsThisMonth` calculation to `AttendanceViewModel`.
-- Modularized the UI by moving screen-specific components to `AttendanceComponents.kt`.
-- Wired loading, error, and refresh callbacks through `AppNavHost.kt`.
+### 3. Technical Integration
+- **`CloudinaryUploader` Utility:** A new, efficient upload service built using the existing `OkHttp` client.
+- **Secure Configuration:** Cloudinary credentials are now managed via `BuildConfig` fields in `build.gradle.kts`.
+- **Firebase Persistence:** Once the upload finishes, the new public URL is automatically saved to the member's profile in the Firebase Realtime Database.
 
 ## Files Modified
-- [AttendanceViewModel.kt](file:///C:/Users/ADMIN/StudioProjects/Morning-Star-Fitness-Centre/app/src/main/java/com/qwerty/morningstarfitness/viewmodels/AttendanceViewModel.kt)
-- [AttendanceScreen.kt](file:///C:/Users/ADMIN/StudioProjects/Morning-Star-Fitness-Centre/app/src/main/java/com/qwerty/morningstarfitness/ui/screens/attendance/AttendanceScreen.kt)
-- [AttendanceComponents.kt](file:///C:/Users/ADMIN/StudioProjects/Morning-Star-Fitness-Centre/app/src/main/java/com/qwerty/morningstarfitness/ui/screens/attendance/AttendanceComponents.kt) [NEW]
-- [AppNavHost.kt](file:///C:/Users/ADMIN/StudioProjects/Morning-Star-Fitness-Centre/app/src/main/java/com/qwerty/morningstarfitness/navigation/AppNavHost.kt)
+- [build.gradle.kts](file:///C:/Users/ADMIN/StudioProjects/Morning-Star-Fitness-Centre/app/build.gradle.kts)
+- [ProfileScreen.kt](file:///C:/Users/ADMIN/StudioProjects/Morning-Star-Fitness-Centre/app/src/main/java/com/qwerty/morningstarfitness/ui/screens/profile/ProfileScreen.kt)
+- [CloudinaryUploader.kt](file:///C:/Users/ADMIN/StudioProjects/Morning-Star-Fitness-Centre/app/src/main/java/com/qwerty/morningstarfitness/utils/CloudinaryUploader.kt) [NEW]

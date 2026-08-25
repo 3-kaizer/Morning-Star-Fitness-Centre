@@ -34,6 +34,8 @@ android {
         // This project intentionally uses a presentation-only M-Pesa mock.
         // No build variant is allowed to send a real STK Push or charge money.
         buildConfigField("Boolean", "MPESA_DEMO_MODE", "true")
+        buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"chxq0j6j\"")
+        buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"android\"")
     }
 
     buildTypes {

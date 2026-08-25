@@ -1,5 +1,6 @@
 package com.qwerty.morningstarfitness.ui.screens.profile
 
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -32,11 +34,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,6 +55,8 @@ import com.qwerty.morningstarfitness.ui.components.PrimaryButton
 import com.qwerty.morningstarfitness.ui.components.SectionLabel
 import com.qwerty.morningstarfitness.ui.screens.registration.MemberFormState
 import com.qwerty.morningstarfitness.ui.theme.PulseColors
+import com.qwerty.morningstarfitness.utils.CloudinaryUploader
+import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(
@@ -59,9 +66,22 @@ fun ProfileScreen(
     onSave: (MemberFormState) -> Unit
 ) {
     var draft by remember(memberForm) { mutableStateOf(memberForm ?: MemberFormState()) }
+    var isUploading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
     val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            draft = draft.copy(profilePictureUrl = uri.toString())
+            scope.launch {
+                isUploading = true
+                val uploadedUrl = CloudinaryUploader.uploadImage(context, uri)
+                if (uploadedUrl != null) {
+                    draft = draft.copy(profilePictureUrl = uploadedUrl)
+                } else {
+                    Toast.makeText(context, "Failed to upload image. Please try again.", Toast.LENGTH_SHORT).show()
+                }
+                isUploading = false
+            }
         }
     }
 
@@ -83,15 +103,27 @@ fun ProfileScreen(
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Box(contentAlignment = Alignment.BottomEnd) {
                     if (!draft.profilePictureUrl.isNullOrBlank()) {
-                        AsyncImage(
-                            model = draft.profilePictureUrl,
-                            contentDescription = "Profile Picture",
-                            modifier = Modifier
-                                .size(110.dp)
-                                .clip(CircleShape)
-                                .border(2.dp, PulseColors.Accent, CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            AsyncImage(
+                                model = draft.profilePictureUrl,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier
+                                    .size(110.dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, PulseColors.Accent, CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                            if (isUploading) {
+                                Box(
+                                    Modifier
+                                        .size(110.dp)
+                                        .background(Color.Black.copy(alpha = 0.5f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(color = PulseColors.Accent, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+                                }
+                            }
+                        }
                     } else {
                         Box(
                             Modifier
@@ -100,21 +132,25 @@ fun ProfileScreen(
                                 .border(1.dp, PulseColors.Border, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                draft.fullName.take(1).uppercase().ifBlank { "M" },
-                                color = PulseColors.Accent,
-                                fontSize = 38.sp,
-                                fontWeight = FontWeight.ExtraBold
-                            )
+                            if (isUploading) {
+                                CircularProgressIndicator(color = PulseColors.Accent, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+                            } else {
+                                Text(
+                                    draft.fullName.take(1).uppercase().ifBlank { "M" },
+                                    color = PulseColors.Accent,
+                                    fontSize = 38.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
                         }
                     }
                     
                     Box(
                         Modifier
                             .size(34.dp)
-                            .background(PulseColors.Accent, CircleShape)
+                            .background(if (isUploading) PulseColors.TextMuted else PulseColors.Accent, CircleShape)
                             .border(2.dp, PulseColors.Background, CircleShape)
-                            .clickable { imagePickerLauncher.launch("image/*") },
+                            .clickable(enabled = !isUploading) { imagePickerLauncher.launch("image/*") },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Default.CameraAlt, null, tint = PulseColors.Background, modifier = Modifier.size(16.dp))
@@ -124,14 +160,6 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(24.dp))
             
-            SectionLabel("Cloudinary Integration")
-            Text("Paste a direct link to your Cloudinary image if you prefer.", color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 5.dp))
-            FormField(
-                label = "Profile image URL",
-                value = draft.profilePictureUrl ?: "",
-                onValueChange = { draft = draft.copy(profilePictureUrl = it) }
-            )
-
             SectionLabel("Personal information")
             Text("Changes are saved to your Firebase member profile.", color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 5.dp))
             FormField(label = "Full name", value = draft.fullName, onValueChange = { draft = draft.copy(fullName = it) })
