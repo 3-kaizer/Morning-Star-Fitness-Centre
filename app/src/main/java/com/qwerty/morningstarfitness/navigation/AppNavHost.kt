@@ -151,7 +151,15 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
         composable(ROUTE_TRAINERS) { TrainersScreen(onBack = { navController.popBackStack() }, onTrainerSelected = { trainer: TrainerSummary -> navController.navigate(ROUTE_TRAINER_DETAIL + "?name=${trainer.name}&specialty=${trainer.specialty}&schedule=${trainer.schedule}&experience=${trainer.experience}&bio=${java.net.URLEncoder.encode(trainer.bio, "UTF-8")}") }) }
         composable(ROUTE_TRAINER_DETAIL + "?name={name}&specialty={specialty}&schedule={schedule}&experience={experience}&bio={bio}") { backStackEntry -> TrainerDetailScreen(name = backStackEntry.arguments?.getString("name") ?: "Trainer", specialty = backStackEntry.arguments?.getString("specialty") ?: "Fitness", schedule = backStackEntry.arguments?.getString("schedule") ?: "Today", experience = backStackEntry.arguments?.getString("experience") ?: "", bio = backStackEntry.arguments?.getString("bio")?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: "", onBack = { navController.popBackStack() }) }
         composable(ROUTE_GYM_STATUS) { GymStatusScreen(trainerCount = 4, onBack = { navController.popBackStack() }) }
-        composable(ROUTE_PAYMENT_HISTORY) { PaymentHistoryScreen(entries = paymentHistoryViewModel.entries, onBack = { navController.popBackStack() }) }
+        composable(ROUTE_PAYMENT_HISTORY) { 
+            PaymentHistoryScreen(
+                entries = paymentHistoryViewModel.entries,
+                membershipPlan = memberViewModel.selectedPlan?.label,
+                membershipExpiry = memberViewModel.membershipExpiry,
+                onRenew = { navController.navigate(ROUTE_RENEW) },
+                onBack = { navController.popBackStack() }
+            ) 
+        }
         composable(ROUTE_MEMBER_CARD) { MemberCardScreen(fullName = memberViewModel.memberForm?.fullName ?: "Member", memberId = memberViewModel.memberId, plan = memberViewModel.selectedPlan?.label, status = memberViewModel.getMembershipStatus(), expiry = memberViewModel.membershipExpiry, qrCode = memberViewModel.qrCodeValue, onBack = { navController.popBackStack() }) }
         composable(ROUTE_NOTIFICATIONS) {
             LaunchedEffect(Unit) { notificationViewModel.refresh() }

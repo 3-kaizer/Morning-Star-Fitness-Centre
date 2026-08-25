@@ -35,10 +35,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qwerty.morningstarfitness.ui.components.GhostButton
 import com.qwerty.morningstarfitness.ui.components.Heading
+import com.qwerty.morningstarfitness.ui.components.PrimaryButton
 import com.qwerty.morningstarfitness.ui.theme.PulseColors
 
 @Composable
-fun PaymentHistoryScreen(entries: List<PaymentHistoryEntry>, onBack: () -> Unit) {
+fun PaymentHistoryScreen(
+    entries: List<PaymentHistoryEntry>,
+    membershipPlan: String? = null,
+    membershipExpiry: String? = null,
+    onRenew: () -> Unit = {},
+    onBack: () -> Unit
+) {
     Column(Modifier.fillMaxSize().background(PulseColors.Background).padding(horizontal = 18.dp, vertical = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = PulseColors.TextPrimary) }
@@ -47,18 +54,28 @@ fun PaymentHistoryScreen(entries: List<PaymentHistoryEntry>, onBack: () -> Unit)
                 Heading("Payment history")
             }
         }
-        Spacer(Modifier.height(14.dp))
+        
+        Spacer(Modifier.height(18.dp))
+        
+        MembershipStatusHeader(membershipPlan, membershipExpiry, onRenew)
+        
+        Spacer(Modifier.height(24.dp))
+        
+        Text("TRANSACTION HISTORY", color = PulseColors.Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
+        Spacer(Modifier.height(12.dp))
+        
         if (entries.isNotEmpty()) {
             Column(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(22.dp))
-                    .background(Brush.linearGradient(listOf(PulseColors.Accent, Color(0xFFFF9A62))))
+                    .background(Brush.linearGradient(listOf(PulseColors.Surface, PulseColors.SurfaceAlt)))
+                    .border(1.dp, PulseColors.Border, RoundedCornerShape(22.dp))
                     .padding(20.dp)
             ) {
                 Text(
                     text = "LIFETIME SPENT",
-                    color = PulseColors.Background.copy(alpha = 0.7f),
+                    color = PulseColors.TextMuted,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.2.sp
@@ -70,20 +87,20 @@ fun PaymentHistoryScreen(entries: List<PaymentHistoryEntry>, onBack: () -> Unit)
                 ) {
                     Text(
                         text = "KSh ${entries.sumOf { it.amount }}",
-                        color = PulseColors.Background,
+                        color = PulseColors.TextPrimary,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
                             text = "TRANSACTIONS",
-                            color = PulseColors.Background.copy(alpha = 0.7f),
+                            color = PulseColors.TextMuted,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.ExtraBold
                         )
                         Text(
                             text = entries.size.toString(),
-                            color = PulseColors.Background,
+                            color = PulseColors.TextPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -176,6 +193,58 @@ fun PaymentHistoryScreen(entries: List<PaymentHistoryEntry>, onBack: () -> Unit)
         }
         Spacer(Modifier.height(12.dp))
         GhostButton("Back to dashboard", onBack, Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
+private fun MembershipStatusHeader(plan: String?, expiry: String?, onRenew: () -> Unit) {
+    val expired = expiry?.let { 
+        try {
+            val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(it)
+            val today = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }.time
+            date?.before(today) ?: true
+        } catch (_: Exception) { true }
+    } ?: true
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(Brush.linearGradient(listOf(PulseColors.Accent, Color(0xFFFF9A62))))
+            .padding(20.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+            Column {
+                Text("CURRENT MEMBERSHIP", color = PulseColors.Background.copy(alpha = 0.7f), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.4.sp)
+                Text(plan ?: "No active plan", color = PulseColors.Background, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 4.dp))
+            }
+            Box(
+                Modifier
+                    .background(if (expired) Color(0xFF3A0E06) else PulseColors.AccentLime, RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = if (expired) "EXPIRED" else "ACTIVE",
+                    color = if (expired) Color(0xFFFFD3C4) else Color(0xFF17240A),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+        }
+        
+        Spacer(Modifier.height(16.dp))
+        
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(if (expired) "EXPIRED ON" else "EXPIRES ON", color = PulseColors.Background.copy(alpha = 0.7f), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+                Text(expiry ?: "—", color = PulseColors.Background, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+            PrimaryButton(
+                text = "RENEW",
+                onClick = onRenew,
+                modifier = Modifier.width(100.dp).height(40.dp)
+            )
+        }
     }
 }
 

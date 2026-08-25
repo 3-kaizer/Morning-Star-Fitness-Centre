@@ -75,11 +75,18 @@ fun AttendanceHero(totalVisits: Int, monthlyVisits: Int) {
 
 @Composable
 fun TimelineItem(entry: AttendanceEntry, isLast: Boolean) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.Top
+    ) {
         // Timeline Column
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(48.dp)
+            modifier = Modifier
+                .width(48.dp)
+                .fillMaxHeight()
         ) {
             Box(
                 Modifier
