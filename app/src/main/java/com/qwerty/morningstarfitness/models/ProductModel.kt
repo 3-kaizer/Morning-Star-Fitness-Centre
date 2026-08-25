@@ -5,5 +5,6 @@ data class ProductModel(
     val name: String,
     val priceKsh: Int,
     val category: String,
+    val description: String? = null,
     val imageUrl: String? = null
 )

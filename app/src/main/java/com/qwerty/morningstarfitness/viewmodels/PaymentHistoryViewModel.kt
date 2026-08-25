@@ -71,13 +71,21 @@ class PaymentHistoryViewModel : ViewModel() {
             ?: child.child("amountKsh").getValue(Double::class.java)?.toInt() ?: 0
         val paidAt = child.child("paidAt").getValue(Long::class.java) ?: 0L
         val id = child.child("paymentId").getValue(String::class.java) ?: child.key.orEmpty()
-        return HistoryItem(id, title, amount, paidAt)
+        val method = displayMethod(child.child("method").getValue(String::class.java))
+        return HistoryItem(id, title, amount, paidAt, method)
     }
 
-    private data class HistoryItem(val id: String, val title: String, val amount: Int, val paidAt: Long) {
+    private fun displayMethod(raw: String?): String = when (raw) {
+        "sandbox_demo" -> "M-Pesa (demo)"
+        "mpesa_daraja_sandbox" -> "M-Pesa (sandbox)"
+        null, "" -> "M-Pesa"
+        else -> raw
+    }
+
+    private data class HistoryItem(val id: String, val title: String, val amount: Int, val paidAt: Long, val method: String = "M-Pesa") {
         fun toEntry(): PaymentHistoryEntry {
             val date = if (paidAt > 0) SimpleDateFormat("dd MMM yyyy, h:mm a", Locale.getDefault()).format(Date(paidAt)) else "Date unavailable"
-            return PaymentHistoryEntry(title, amount, date, id)
+            return PaymentHistoryEntry(title, amount, date, id, method)
         }
     }
 }

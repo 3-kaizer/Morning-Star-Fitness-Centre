@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.qwerty.morningstarfitness.models.MembershipPlanModel
 import com.qwerty.morningstarfitness.ui.components.GhostButton
 import com.qwerty.morningstarfitness.ui.components.Heading
@@ -60,6 +61,7 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun HomeScreen(
     firstName: String,
+    profilePictureUrl: String? = null,
     plan: MembershipPlanModel?,
     onLogout: () -> Unit,
     onOpenShop: () -> Unit = {},
@@ -108,7 +110,16 @@ fun HomeScreen(
                             }
                         }
                         Box(Modifier.size(42.dp).background(PulseColors.Accent, CircleShape).clickable(onClick = onOpenProfile), contentAlignment = Alignment.Center) {
-                            Text(firstName.take(1).uppercase().ifBlank { "M" }, color = PulseColors.Background, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                            if (!profilePictureUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = profilePictureUrl,
+                                    contentDescription = "Profile Picture",
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                )
+                            } else {
+                                Text(firstName.take(1).uppercase().ifBlank { "M" }, color = PulseColors.Background, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                            }
                         }
                     }
                 }
@@ -136,13 +147,13 @@ fun HomeScreen(
 
                         Spacer(Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            ActionGridItem(Icons.Default.History, "History", onOpenAttendance, Modifier.weight(1f))
-                            ActionGridItem(Icons.Default.CreditCard, "Payments", onOpenPaymentHistory, Modifier.weight(1f))
+                            ActionGridItem(Icons.Default.History, "History", if (attendanceCount == 0) "No visits yet" else "$attendanceCount check-in${if (attendanceCount == 1) "" else "s"} logged", onOpenAttendance, Modifier.weight(1f))
+                            ActionGridItem(Icons.Default.CreditCard, "Payments", "Receipts & renewals", onOpenPaymentHistory, Modifier.weight(1f))
                         }
                         Spacer(Modifier.height(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            ActionGridItem(Icons.Default.ShoppingCart, "Shop", onOpenShop, Modifier.weight(1f))
-                            ActionGridItem(Icons.Default.FitnessCenter, "Trainers", onOpenTrainers, Modifier.weight(1f))
+                            ActionGridItem(Icons.Default.ShoppingCart, "Shop", "Gear & supplements", onOpenShop, Modifier.weight(1f))
+                            ActionGridItem(Icons.Default.FitnessCenter, "Trainers", "$trainerCount on duty today", onOpenTrainers, Modifier.weight(1f))
                         }
 
                         Spacer(Modifier.height(20.dp))
@@ -197,12 +208,13 @@ private fun PrimaryEnterGymCard(text: String, subtitle: String, onClick: () -> U
 }
 
 @Composable
-private fun ActionGridItem(icon: ImageVector, title: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ActionGridItem(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.background(PulseColors.Surface, RoundedCornerShape(16.dp)).border(1.dp, PulseColors.Border, RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(14.dp)) {
         Box(Modifier.size(36.dp).background(PulseColors.SurfaceAlt, CircleShape), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = PulseColors.Accent, modifier = Modifier.size(18.dp))
         }
         Text(title, color = PulseColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
+        Text(subtitle, color = PulseColors.TextMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
     }
 }
 

@@ -31,7 +31,7 @@ import com.qwerty.morningstarfitness.ui.components.PrimaryButton
 import com.qwerty.morningstarfitness.ui.theme.PulseColors
 
 @Composable
-fun TrainerDetailScreen(name: String, specialty: String, schedule: String, onBack: () -> Unit) {
+fun TrainerDetailScreen(name: String, specialty: String, schedule: String, experience: String = "", bio: String = "", onBack: () -> Unit) {
     val requested = remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().background(PulseColors.Background).padding(horizontal = 18.dp, vertical = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -46,9 +46,16 @@ fun TrainerDetailScreen(name: String, specialty: String, schedule: String, onBac
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.CheckCircle, null, tint = PulseColors.AccentLime)
                 Text("ON DUTY TODAY", color = PulseColors.AccentLime, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp))
+                if (experience.isNotBlank()) {
+                    Spacer(Modifier.weight(1f))
+                    Text(experience.uppercase(), color = PulseColors.TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
             }
             Text(specialty, color = PulseColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
-            Text("Today's availability", color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+            if (bio.isNotBlank()) {
+                Text(bio, color = PulseColors.TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+            }
+            Text("Today's availability", color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 16.dp))
             Text(schedule, color = PulseColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 3.dp))
             Spacer(Modifier.height(20.dp))
             if (requested.value) {

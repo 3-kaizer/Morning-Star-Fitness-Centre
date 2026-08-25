@@ -1,6 +1,7 @@
 package com.qwerty.morningstarfitness.ui.screens.shop
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -45,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import coil3.ImageLoader
 import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.qwerty.morningstarfitness.models.ProductModel
 import com.qwerty.morningstarfitness.ui.components.BrandMark
 import com.qwerty.morningstarfitness.ui.components.GhostButton
@@ -165,10 +168,81 @@ fun FulfilmentOption(selected: Boolean, label: String, icon: androidx.compose.ui
 
 @Composable
 private fun ProductRow(product: ProductModel, quantity: Int, imageLoader: ImageLoader, onQuantityChange: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        ProductImage(product, imageLoader); Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) { Text(product.name, color = PulseColors.TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp); Text(product.category, color = PulseColors.TextMuted, fontSize = 11.sp); Text("KSh ${product.priceKsh}", color = PulseColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 13.sp) }
-        Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { if (quantity > 0) onQuantityChange(quantity - 1) }) { Text("–", color = PulseColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold) }; Text(quantity.toString(), color = PulseColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.width(20.dp)); IconButton(onClick = { onQuantityChange(quantity + 1) }) { Text("+", color = PulseColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold) } }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(PulseColors.Surface, RoundedCornerShape(16.dp))
+            .border(1.dp, PulseColors.Border, RoundedCornerShape(16.dp))
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ProductImage(product, imageLoader)
+        
+        Spacer(Modifier.width(16.dp))
+        
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = product.name,
+                color = PulseColors.TextPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+            Text(
+                text = product.category.uppercase(),
+                color = PulseColors.Accent,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+            product.description?.let {
+                Text(
+                    text = it,
+                    color = PulseColors.TextMuted,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                )
+            }
+            Text(
+                text = "KSh ${product.priceKsh}",
+                color = PulseColors.TextPrimary,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+        
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(start = 8.dp)
+        ) {
+            IconButton(
+                onClick = { onQuantityChange(quantity + 1) },
+                modifier = Modifier.size(32.dp).background(PulseColors.Accent.copy(alpha = 0.15f), CircleShape)
+            ) {
+                Text("+", color = PulseColors.Accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+            
+            Text(
+                text = quantity.toString(),
+                color = PulseColors.TextPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+            
+            IconButton(
+                onClick = { if (quantity > 0) onQuantityChange(quantity - 1) },
+                enabled = quantity > 0,
+                modifier = Modifier.size(32.dp).background(if (quantity > 0) PulseColors.SurfaceAlt else PulseColors.SurfaceAlt.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Text("–", color = if (quantity > 0) PulseColors.TextPrimary else PulseColors.TextMuted, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        }
     }
 }
 
@@ -177,6 +251,7 @@ private fun ProductImage(product: ProductModel, imageLoader: ImageLoader) {
     SubcomposeAsyncImage(
         model = ImageRequest.Builder(LocalContext.current)
             .data(product.imageUrl)
+            .crossfade(true)
             .memoryCacheKey(product.imageUrl)
             .diskCacheKey(product.imageUrl)
             .build(),
@@ -184,15 +259,15 @@ private fun ProductImage(product: ProductModel, imageLoader: ImageLoader) {
         contentDescription = product.name,
         contentScale = ContentScale.Crop,
         loading = {
-            Box(Modifier.fillMaxSize().background(PulseColors.Background), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().background(PulseColors.SurfaceAlt), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = PulseColors.Accent, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
             }
         },
         error = {
-            Box(Modifier.fillMaxSize().background(PulseColors.Background), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().background(PulseColors.SurfaceAlt), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.Store, contentDescription = null, tint = PulseColors.TextMuted, modifier = Modifier.size(24.dp))
             }
         },
-        modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)).background(PulseColors.Background)
+        modifier = Modifier.size(85.dp).clip(RoundedCornerShape(12.dp)).background(PulseColors.SurfaceAlt)
     )
 }

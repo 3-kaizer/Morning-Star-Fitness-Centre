@@ -35,13 +35,29 @@ import com.qwerty.morningstarfitness.ui.components.GhostButton
 import com.qwerty.morningstarfitness.ui.components.Heading
 import com.qwerty.morningstarfitness.ui.theme.PulseColors
 
-data class TrainerSummary(val name: String, val specialty: String, val schedule: String, val status: String)
+data class TrainerSummary(val name: String, val specialty: String, val schedule: String, val status: String, val experience: String, val bio: String)
 
 val todayTrainers = listOf(
-    TrainerSummary("Alex Mwangi", "Strength & Conditioning", "6:00 AM – 2:00 PM", "Available"),
-    TrainerSummary("Brian Kamau", "Weight Loss & HIIT", "10:00 AM – 6:00 PM", "Available"),
-    TrainerSummary("Sarah Wanjiku", "Personal Training", "2:00 PM – 9:00 PM", "Available"),
-    TrainerSummary("Kevin Otieno", "Functional Fitness", "4:00 PM – 10:00 PM", "Available")
+    TrainerSummary(
+        "Alex Mwangi", "Strength & Conditioning", "6:00 AM – 2:00 PM", "Available",
+        experience = "7 years coaching",
+        bio = "Focuses on compound lifts and progressive overload for members building raw strength. Runs the early morning barbell club."
+    ),
+    TrainerSummary(
+        "Brian Kamau", "Weight Loss & HIIT", "10:00 AM – 6:00 PM", "Available",
+        experience = "5 years coaching",
+        bio = "Designs high-intensity interval circuits tailored to fat-loss goals, with an emphasis on sustainable habit-building over quick fixes."
+    ),
+    TrainerSummary(
+        "Sarah Wanjiku", "Personal Training", "2:00 PM – 9:00 PM", "Available",
+        experience = "9 years coaching",
+        bio = "One-on-one programming for members at every level, from first-time gym-goers to competitive lifters. Certified in injury-safe technique."
+    ),
+    TrainerSummary(
+        "Kevin Otieno", "Functional Fitness", "4:00 PM – 10:00 PM", "Available",
+        experience = "4 years coaching",
+        bio = "Blends mobility, core stability, and real-world movement patterns to keep members strong for everyday life, not just the gym."
+    )
 )
 
 @Composable

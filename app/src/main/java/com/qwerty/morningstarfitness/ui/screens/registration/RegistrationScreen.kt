@@ -61,7 +61,8 @@ data class MemberFormState(
     val password: String = "",
     val confirmPassword: String = "",
     val securityQuestion: String = "",
-    val securityAnswer: String = ""
+    val securityAnswer: String = "",
+    val profilePictureUrl: String? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

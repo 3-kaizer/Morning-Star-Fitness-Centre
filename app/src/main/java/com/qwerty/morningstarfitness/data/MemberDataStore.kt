@@ -31,6 +31,7 @@ class MemberDataStore(private val context: Context) {
         val memberId = stringPreferencesKey("member_id")
         val membershipStart = stringPreferencesKey("membership_start")
         val membershipExpiry = stringPreferencesKey("membership_expiry")
+        val profilePictureUrl = stringPreferencesKey("profile_picture_url")
     }
 
     suspend fun saveMember(
@@ -52,7 +53,8 @@ class MemberDataStore(private val context: Context) {
         qrCode: String?,
         memberId: String? = null,
         membershipStart: String? = null,
-        membershipExpiry: String? = null
+        membershipExpiry: String? = null,
+        profilePictureUrl: String? = null
     ) {
         context.memberDataStore.edit { p ->
             putIfNotNull(p, Keys.authUid, authUid)
@@ -74,6 +76,7 @@ class MemberDataStore(private val context: Context) {
             putIfNotNull(p, Keys.memberId, memberId)
             putIfNotNull(p, Keys.membershipStart, membershipStart)
             putIfNotNull(p, Keys.membershipExpiry, membershipExpiry)
+            putIfNotNull(p, Keys.profilePictureUrl, profilePictureUrl)
         }
     }
 
@@ -99,6 +102,7 @@ class MemberDataStore(private val context: Context) {
             p[Keys.memberId]?.let { put(Keys.memberId, it) }
             p[Keys.membershipStart]?.let { put(Keys.membershipStart, it) }
             p[Keys.membershipExpiry]?.let { put(Keys.membershipExpiry, it) }
+            p[Keys.profilePictureUrl]?.let { put(Keys.profilePictureUrl, it) }
         }
     }
 

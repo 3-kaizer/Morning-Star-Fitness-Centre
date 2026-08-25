@@ -1,7 +1,10 @@
 package com.qwerty.morningstarfitness.ui.screens.profile
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -19,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -29,11 +35,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.qwerty.morningstarfitness.models.MembershipPlanModel
 import com.qwerty.morningstarfitness.ui.components.FormField
 import com.qwerty.morningstarfitness.ui.components.Heading
@@ -50,6 +59,11 @@ fun ProfileScreen(
     onSave: (MemberFormState) -> Unit
 ) {
     var draft by remember(memberForm) { mutableStateOf(memberForm ?: MemberFormState()) }
+    val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            draft = draft.copy(profilePictureUrl = uri.toString())
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(PulseColors.Background).padding(horizontal = 18.dp, vertical = 16.dp), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.fillMaxWidth().widthIn(max = 460.dp).verticalScroll(rememberScrollState())) {
@@ -63,33 +77,60 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
-            Row(
-                Modifier.fillMaxWidth().background(PulseColors.Surface, RoundedCornerShape(18.dp)).border(1.dp, PulseColors.Border, RoundedCornerShape(18.dp)).padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(Modifier.size(50.dp).background(PulseColors.Accent, CircleShape), contentAlignment = Alignment.Center) {
-                    Text(draft.fullName.take(1).uppercase().ifBlank { "M" }, color = PulseColors.Background, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
-                }
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text(draft.fullName.ifBlank { "Morning Star Member" }, color = PulseColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text(draft.email.ifBlank { "No login email" }, color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
+            Spacer(Modifier.height(24.dp))
+            
+            // Profile Picture Section
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    if (!draft.profilePictureUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = draft.profilePictureUrl,
+                            contentDescription = "Profile Picture",
+                            modifier = Modifier
+                                .size(110.dp)
+                                .clip(CircleShape)
+                                .border(2.dp, PulseColors.Accent, CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            Modifier
+                                .size(110.dp)
+                                .background(PulseColors.SurfaceAlt, CircleShape)
+                                .border(1.dp, PulseColors.Border, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                draft.fullName.take(1).uppercase().ifBlank { "M" },
+                                color = PulseColors.Accent,
+                                fontSize = 38.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                    }
+                    
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .background(PulseColors.Accent, CircleShape)
+                            .border(2.dp, PulseColors.Background, CircleShape)
+                            .clickable { imagePickerLauncher.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.CameraAlt, null, tint = PulseColors.Background, modifier = Modifier.size(16.dp))
+                    }
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
-            SectionLabel("Membership")
-            Row(
-                Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(15.dp)).border(1.dp, PulseColors.Border, RoundedCornerShape(15.dp)).padding(15.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text("CURRENT PLAN", color = PulseColors.TextMuted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
-                    Text(plan?.label ?: "No active plan", color = PulseColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
-                }
-                Text(plan?.let { "KSh ${it.priceKsh}" } ?: "—", color = PulseColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            }
+            Spacer(Modifier.height(24.dp))
+            
+            SectionLabel("Cloudinary Integration")
+            Text("Paste a direct link to your Cloudinary image if you prefer.", color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 5.dp))
+            FormField(
+                label = "Profile image URL",
+                value = draft.profilePictureUrl ?: "",
+                onValueChange = { draft = draft.copy(profilePictureUrl = it) }
+            )
 
             SectionLabel("Personal information")
             Text("Changes are saved to your Firebase member profile.", color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 5.dp))

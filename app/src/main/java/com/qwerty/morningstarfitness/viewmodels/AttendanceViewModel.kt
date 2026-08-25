@@ -25,6 +25,17 @@ class AttendanceViewModel : ViewModel() {
     var isLoading by mutableStateOf(false); private set
     var loadError by mutableStateOf<String?>(null); private set
 
+    val visitsThisMonth: Int
+        get() {
+            val calendar = Calendar.getInstance()
+            val currentMonth = calendar.get(Calendar.MONTH)
+            val currentYear = calendar.get(Calendar.YEAR)
+            return attendanceHistory.count { entry ->
+                val entryCal = Calendar.getInstance().apply { timeInMillis = entry.timestamp }
+                entryCal.get(Calendar.MONTH) == currentMonth && entryCal.get(Calendar.YEAR) == currentYear
+            }
+        }
+
     private suspend fun memberIdentity(): Pair<String, String>? {
         val uid = auth.currentUser?.uid ?: return null
         val member = database.reference.child("members").child(uid).get().await()

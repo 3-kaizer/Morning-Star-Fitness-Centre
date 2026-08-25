@@ -1,0 +1,15 @@
+- [x] ViewModel Enhancements
+    - [x] Add `visitsThisMonth` property to `AttendanceViewModel`
+    - [x] Refactor `fetchAttendanceHistory` for better state management
+- [x] UI Components Redesign
+    - [x] Implement `AttendanceHero` component
+    - [x] Implement `TimelineItem` component
+    - [x] Implement `AttendanceShimmer` / Loading state
+- [x] Screen Integration
+    - [x] Update `AttendanceScreen.kt` with new layout
+    - [x] Add `PullToRefreshBox` support
+- [x] Navigation Wiring
+    - [x] Update `AppNavHost.kt` to pass necessary states
+- [x] Final Verification
+    - [x] Verify stats calculation
+    - [x] Verify UI aesthetics and timeline connectivity

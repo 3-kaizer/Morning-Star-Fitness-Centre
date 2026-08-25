@@ -3,6 +3,7 @@ package com.qwerty.morningstarfitness.ui.components
 import android.content.Context
 import coil3.ImageLoader
 import coil3.request.ImageRequest
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -16,6 +17,9 @@ import kotlinx.coroutines.withContext
  */
 object RemoteImageLoader {
     fun create(context: Context): ImageLoader = ImageLoader.Builder(context.applicationContext)
+        .components {
+            add(OkHttpNetworkFetcherFactory())
+        }
         .build()
 
     suspend fun preload(

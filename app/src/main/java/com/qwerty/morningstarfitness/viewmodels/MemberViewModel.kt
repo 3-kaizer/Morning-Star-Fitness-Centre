@@ -57,7 +57,17 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun applySnapshot(s: DataSnapshot, normalizedMemberId: String? = null) {
-        memberForm = MemberFormState(s.child("fullName").getValue(String::class.java).orEmpty(), s.child("phone").getValue(String::class.java).orEmpty(), s.child("email").getValue(String::class.java).orEmpty(), s.child("dob").getValue(String::class.java).orEmpty(), s.child("gender").getValue(String::class.java).orEmpty(), s.child("emergencyContact").getValue(String::class.java).orEmpty(), s.child("securityQuestion").getValue(String::class.java).orEmpty(), s.child("securityAnswer").getValue(String::class.java).orEmpty())
+        memberForm = MemberFormState(
+            fullName = s.child("fullName").getValue(String::class.java).orEmpty(),
+            phone = s.child("phone").getValue(String::class.java).orEmpty(),
+            email = s.child("email").getValue(String::class.java).orEmpty(),
+            dob = s.child("dob").getValue(String::class.java).orEmpty(),
+            gender = s.child("gender").getValue(String::class.java).orEmpty(),
+            emergencyContact = s.child("emergencyContact").getValue(String::class.java).orEmpty(),
+            securityQuestion = s.child("securityQuestion").getValue(String::class.java).orEmpty(),
+            securityAnswer = s.child("securityAnswer").getValue(String::class.java).orEmpty(),
+            profilePictureUrl = s.child("profilePictureUrl").getValue(String::class.java)
+        )
         qrCodeValue = s.child("qrCode").getValue(String::class.java)
         memberId = normalizedMemberId ?: s.child("memberId").getValue(String::class.java)
         membershipStart = s.child("membershipStart").getValue(String::class.java)
@@ -153,7 +163,17 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
             if (currentUid != null && savedUid.isNotBlank() && savedUid != currentUid) { store.clear(); isLoaded = true; return false }
             val name = get("full_name")
             if (name.isBlank()) { isLoaded = true; return false }
-            memberForm = MemberFormState(name, get("phone"), get("email"), get("dob"), get("gender"), get("emergency_contact"), get("security_question"), get("security_answer"))
+            memberForm = MemberFormState(
+                fullName = name,
+                phone = get("phone"),
+                email = get("email"),
+                dob = get("dob"),
+                gender = get("gender"),
+                emergencyContact = get("emergency_contact"),
+                securityQuestion = get("security_question"),
+                securityAnswer = get("security_answer"),
+                profilePictureUrl = get("profile_picture_url").ifBlank { null }
+            )
             val label = get("selected_plan_label")
             selectedPlan = if (label.isBlank()) null else MembershipPlanModel(get("selected_plan_id"), label, get("selected_plan_price").toIntOrNull() ?: 0, get("selected_plan_duration").toIntOrNull() ?: 0)
             paymentMethod = get("payment_method").ifBlank { "mpesa" }; paymentStatus = get("payment_status").ifBlank { "pending" }; qrCodeValue = get("qr_code").ifBlank { null }; memberId = get("member_id").ifBlank { null }; membershipStart = get("membership_start").ifBlank { null }; membershipExpiry = get("membership_expiry").ifBlank { null }; isLoaded = true; true
@@ -165,7 +185,34 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
     fun updateMemberForm(form: MemberFormState) { memberForm = form; persist() }
     fun updateSelectedPlan(plan: MembershipPlanModel) { selectedPlan = plan; persist() }
     fun updatePaymentMethod(method: String) { paymentMethod = method; persist() }
-    fun updateProfile(form: MemberFormState, onResult: (Boolean, String) -> Unit = { _, _ -> }) { profileSaveError = null; val uid = auth.currentUser?.uid; if (uid == null) { onResult(false, "You are not signed in."); return }; viewModelScope.launch { try { database.reference.child("members").child(uid).updateChildren(mapOf("fullName" to form.fullName.trim(), "phone" to form.phone.trim(), "email" to form.email.trim(), "dob" to form.dob, "gender" to form.gender, "emergencyContact" to form.emergencyContact.trim())).await(); refreshFromFirebase(); onResult(true, "Profile updated successfully.") } catch (e: Exception) { profileSaveError = e.message ?: "Could not save profile."; onResult(false, profileSaveError ?: "Could not save profile.") } } }
+    fun updateProfile(form: MemberFormState, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        profileSaveError = null
+        val uid = auth.currentUser?.uid
+        if (uid == null) {
+            onResult(false, "You are not signed in.")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                database.reference.child("members").child(uid).updateChildren(
+                    mapOf(
+                        "fullName" to form.fullName.trim(),
+                        "phone" to form.phone.trim(),
+                        "email" to form.email.trim(),
+                        "dob" to form.dob,
+                        "gender" to form.gender,
+                        "emergencyContact" to form.emergencyContact.trim(),
+                        "profilePictureUrl" to form.profilePictureUrl
+                    )
+                ).await()
+                refreshFromFirebase()
+                onResult(true, "Profile updated successfully.")
+            } catch (e: Exception) {
+                profileSaveError = e.message ?: "Could not save profile."
+                onResult(false, profileSaveError ?: "Could not save profile.")
+            }
+        }
+    }
     fun prepareMembership(plan: MembershipPlanModel) { val now = System.currentTimeMillis(); val calendar = Calendar.getInstance(); membershipStart = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now)); calendar.timeInMillis = now; calendar.add(Calendar.MONTH, plan.durationMonths); membershipExpiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time); memberId = "MSFC-" + UUID.randomUUID().toString().take(6).uppercase(); persist() }
     fun generateQrCode(forceNew: Boolean = false): String { val existing = qrCodeValue?.takeIf { it.isNotBlank() }; if (!forceNew && existing != null) return existing; val value = "GYM-" + UUID.randomUUID().toString(); qrCodeValue = value; persist(); return value }
     fun completePaymentLocally() { paymentStatus = "paid"; persist() }
@@ -173,7 +220,33 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
     fun getMembershipStatus(): String { if (selectedPlan == null) return "No Plan"; val expiry = membershipExpiry ?: return "Pending"; return if (isExpired(expiry)) "Expired" else "Active" }
     private fun isExpired(value: String): Boolean = try { val expiry = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(value) ?: return true; val today = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.time; expiry.before(today) } catch (_: Exception) { true }
     fun renewMembership(plan: MembershipPlanModel, onComplete: (Boolean) -> Unit) { renewalError = "Use the M-Pesa payment screen to renew membership."; onComplete(false) }
-    private fun persist() { val member = memberForm ?: return; viewModelScope.launch { store.saveMember(auth.currentUser?.uid, member.fullName, member.phone, member.email, member.dob, member.gender, member.emergencyContact, member.securityQuestion, member.securityAnswer, selectedPlan?.id, selectedPlan?.label, selectedPlan?.priceKsh, selectedPlan?.durationMonths, paymentMethod, paymentStatus, qrCodeValue, memberId, membershipStart, membershipExpiry) } }
+    private fun persist() {
+        val member = memberForm ?: return
+        viewModelScope.launch {
+            store.saveMember(
+                authUid = auth.currentUser?.uid,
+                fullName = member.fullName,
+                phone = member.phone,
+                email = member.email,
+                dob = member.dob,
+                gender = member.gender,
+                emergencyContact = member.emergencyContact,
+                securityQuestion = member.securityQuestion,
+                securityAnswer = member.securityAnswer,
+                planId = selectedPlan?.id,
+                planLabel = selectedPlan?.label,
+                planPrice = selectedPlan?.priceKsh,
+                planDuration = selectedPlan?.durationMonths,
+                paymentMethod = paymentMethod,
+                paymentStatus = paymentStatus,
+                qrCode = qrCodeValue,
+                memberId = memberId,
+                membershipStart = membershipStart,
+                membershipExpiry = membershipExpiry,
+                profilePictureUrl = member.profilePictureUrl
+            )
+        }
+    }
     fun clearLocalData() { viewModelScope.launch { store.clear() }; memberForm = null; selectedPlan = null; memberId = null; qrCodeValue = null; membershipStart = null; membershipExpiry = null; paymentMethod = "mpesa"; paymentStatus = "pending"; renewalError = null; profileSaveError = null; isLoaded = true }
     fun verifySecurityAnswer(answer: String): Boolean { val form = memberForm ?: return false; return com.qwerty.morningstarfitness.security.hashSecurityAnswer(answer) == form.securityAnswer }
 }

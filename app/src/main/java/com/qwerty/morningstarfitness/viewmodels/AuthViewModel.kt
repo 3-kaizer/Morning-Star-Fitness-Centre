@@ -48,7 +48,8 @@ class AuthViewModel : ViewModel() {
         membershipStart: String? = null,
         membershipExpiry: String? = null,
         paymentReference: String? = null,
-        mpesaReceipt: String? = null
+        mpesaReceipt: String? = null,
+        profilePictureUrl: String? = null
     ): Boolean {
         registrationError = null; isProcessing = true
         var createdUser: com.google.firebase.auth.FirebaseUser? = null
@@ -81,6 +82,7 @@ class AuthViewModel : ViewModel() {
                 "qrCode" to qrCodeValue,
                 "membershipStart" to membershipStart,
                 "membershipExpiry" to membershipExpiry,
+                "profilePictureUrl" to profilePictureUrl,
                 "paymentStatus" to "paid",
                 "paymentMethod" to "sandbox_demo",
                 "lastPaymentId" to paymentId,
