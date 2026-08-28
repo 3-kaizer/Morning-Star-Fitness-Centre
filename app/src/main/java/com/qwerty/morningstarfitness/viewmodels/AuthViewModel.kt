@@ -151,6 +151,10 @@ class AuthViewModel : ViewModel() {
 
     fun currentUser() = auth.currentUser
 
+    // Kept for compatibility with the navigation flow. A signed-out fresh launch
+    // starts onboarding; an explicit logout goes directly to Login.
+    fun hasCompletedOnboarding(): Boolean = false
+
     private fun friendlyAuthError(error: Exception): String = when (error) {
         is FirebaseAuthInvalidUserException -> "No account was found for that email."
         is FirebaseAuthInvalidCredentialsException -> "Incorrect email or password."
