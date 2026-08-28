@@ -26,6 +26,7 @@ import com.qwerty.morningstarfitness.ui.theme.PulseColors
 
 @Composable
 fun EntryScreen(
+    isAuthenticated: Boolean,
     onCreateAccount: () -> Unit,
     onLogin: () -> Unit,
     onEnterGym: () -> Unit
@@ -50,7 +51,7 @@ fun EntryScreen(
             Heading("Welcome to Morning Star")
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Your dashboard lives behind membership. Gym entry is a separate fast lane — just show your QR.",
+                text = if (isAuthenticated) "Ready for gym entry? Press Enter the Gym when you are ready." else "Your dashboard lives behind membership. Sign in if you are already a member, or create a new account.",
                 color = PulseColors.TextMuted,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center
@@ -58,36 +59,27 @@ fun EntryScreen(
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            PrimaryButton(
-                text = "CREATE AN ACCOUNT",
-                onClick = onCreateAccount,
-                modifier = Modifier.fillMaxWidth()
-            )
+            if (!isAuthenticated) {
+                PrimaryButton(
+                    text = "CREATE AN ACCOUNT",
+                    onClick = onCreateAccount,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            GhostButton(
-                text = "I'M ALREADY A MEMBER  ·  DASHBOARD",
-                onClick = onLogin,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            PrimaryButton(
-                text = "ENTER THE GYM  ·  SHOW QR",
-                onClick = onEnterGym,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "No dashboard detour. Your QR is all the front desk needs.",
-                color = PulseColors.TextMuted,
-                fontSize = 11.sp,
-                textAlign = TextAlign.Center
-            )
+                GhostButton(
+                    text = "SIGN IN",
+                    onClick = onLogin,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                PrimaryButton(
+                    text = "ENTER THE GYM",
+                    onClick = onEnterGym,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
