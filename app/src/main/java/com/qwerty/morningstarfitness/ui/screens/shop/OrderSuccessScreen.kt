@@ -89,7 +89,7 @@ fun OrderSuccessScreen(
                 Spacer(modifier = Modifier.height(32.dp))
                 HorizontalDivider(color = PulseColors.SurfaceAlt)
                 Spacer(modifier = Modifier.height(24.dp))
-                PrimaryButton(text = "Continue Shopping", onClick = onContinue)
+                PrimaryButton(text = "CONTINUE TO HOME", onClick = onContinue)
             } else {
                 Spacer(modifier = Modifier.height(40.dp))
                 Text(text = "Order details not found.", color = PulseColors.Error, fontSize = 14.sp)

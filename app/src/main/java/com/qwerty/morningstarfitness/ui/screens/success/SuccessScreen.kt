@@ -72,12 +72,12 @@ fun SuccessScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Heading("Payment successful")
+            Heading("Payment Successful 🎉")
 
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Your first payment for the ${plan?.label ?: "selected"} plan is confirmed. Welcome to the gym, $firstName!",
+                text = "Your payment for the ${plan?.label ?: "selected"} plan is confirmed. Welcome to the gym, $firstName!",
                 color = PulseColors.TextMuted,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center
@@ -89,16 +89,17 @@ fun SuccessScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(PulseColors.Accent.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
-                    .padding(16.dp)
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "NEXT STEP",
+                    text = "Next Step",
                     color = PulseColors.Accent,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.2.sp
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    letterSpacing = 0.5.sp
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Please visit the front desk to confirm your membership and collect your membership details/card.",
                     color = PulseColors.TextPrimary,
@@ -143,10 +144,10 @@ fun SuccessScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             PrimaryButton(
-                text = "Go to my dashboard",
+                text = "GO TO DASHBOARD",
                 onClick = onContinue
             )
 

@@ -128,7 +128,7 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             PaymentScreen(plan = memberViewModel.selectedPlan, phone = memberViewModel.memberForm?.phone.orEmpty(), isProcessing = paymentViewModel.isProcessing || memberViewModel.isRenewing, paymentStatus = paymentViewModel.paymentStatus, receipt = paymentViewModel.mpesaReceipt, errorMessage = paymentViewModel.errorMessage ?: memberViewModel.renewalError, isPresentationSandbox = paymentViewModel.isPresentationSandbox, onBack = { navController.popBackStack() }, onPay = {
                 val plan = memberViewModel.selectedPlan ?: return@PaymentScreen
                 paymentViewModel.startStkPayment(phone = memberViewModel.memberForm?.phone.orEmpty(), amount = plan.priceKsh, purpose = "membership_renewal", referenceId = "RENEW-${UUID.randomUUID().toString().replace("-", "").take(8).uppercase()}", planId = plan.id, planLabel = plan.label, planDuration = plan.durationMonths) { success ->
-                    if (success) scope.launch { memberViewModel.refreshFromFirebase(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh(); paymentViewModel.reset(); navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_HOME) { inclusive = true } } }
+                    if (success) scope.launch { memberViewModel.refreshFromFirebase(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh(); paymentViewModel.reset(); navController.navigate(ROUTE_SUCCESS) { popUpTo(ROUTE_HOME) { inclusive = true } } }
                 }
             }, onCancel = { paymentViewModel.reset() })
         }
