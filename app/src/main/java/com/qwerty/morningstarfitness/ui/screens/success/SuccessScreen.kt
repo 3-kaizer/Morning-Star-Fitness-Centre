@@ -72,18 +72,44 @@ fun SuccessScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Heading("Congrats, $firstName!")
+            Heading("Payment successful")
 
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Your first payment for the ${plan?.label ?: "selected"} plan is in. Welcome to the gym.",
+                text = "Your first payment for the ${plan?.label ?: "selected"} plan is confirmed. Welcome to the gym, $firstName!",
                 color = PulseColors.TextMuted,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(PulseColors.Accent.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "NEXT STEP",
+                    color = PulseColors.Accent,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 11.sp,
+                    letterSpacing = 1.2.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Please visit the front desk to confirm your membership and collect your membership details/card.",
+                    color = PulseColors.TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
 
             QrCodeDisplay(content = qrCodeValue, sizeDp = 180.dp)
 
