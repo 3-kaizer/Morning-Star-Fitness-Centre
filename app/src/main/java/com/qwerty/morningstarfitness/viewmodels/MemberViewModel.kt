@@ -159,8 +159,22 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
         return try {
             val preferences = store.read()
             fun get(key: String): String = preferences.entries.firstOrNull { it.key.name == key }?.value.orEmpty()
-            val savedUid = get("auth_uid"); val currentUid = auth.currentUser?.uid
-            if (currentUid != null && savedUid.isNotBlank() && savedUid != currentUid) { store.clear(); isLoaded = true; return false }
+            val savedUid = get("auth_uid")
+            val currentUid = auth.currentUser?.uid
+            
+            // If not logged in, or if logged in as a different user, clear local cache.
+            if (currentUid == null || (savedUid.isNotBlank() && savedUid != currentUid)) {
+                store.clear()
+                memberForm = null
+                selectedPlan = null
+                memberId = null
+                qrCodeValue = null
+                membershipStart = null
+                membershipExpiry = null
+                isLoaded = true
+                return false
+            }
+
             val name = get("full_name")
             if (name.isBlank()) { isLoaded = true; return false }
             memberForm = MemberFormState(

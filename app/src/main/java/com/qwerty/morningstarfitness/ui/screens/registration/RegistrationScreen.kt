@@ -1,6 +1,23 @@
 package com.qwerty.morningstarfitness.ui.screens.registration
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import coil3.compose.AsyncImage
+import com.qwerty.morningstarfitness.utils.CloudinaryUploader
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -75,6 +93,22 @@ fun RegistrationScreen(
     var showConfirmPassword by remember { mutableStateOf(false) }
     var agreedToTerms by remember { mutableStateOf(false) }
     var errors by remember { mutableStateOf(mapOf<String, String>()) }
+    var isUploading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                isUploading = true
+                val uploadedUrl = CloudinaryUploader.uploadImage(context, uri)
+                if (uploadedUrl != null) {
+                    form = form.copy(profilePictureUrl = uploadedUrl)
+                }
+                isUploading = false
+            }
+        }
+    }
 
     fun validate(): Boolean {
         val newErrors = mutableMapOf<String, String>()
@@ -106,6 +140,42 @@ fun RegistrationScreen(
             Heading("Join the gym")
             Spacer(modifier = Modifier.height(4.dp))
             Text("Create your member account to get started.", color = PulseColors.TextMuted, fontSize = 14.sp)
+
+            Spacer(Modifier.height(20.dp))
+            // Profile Picture Section
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    if (!form.profilePictureUrl.isNullOrBlank()) {
+                        Box(contentAlignment = Alignment.Center) {
+                            AsyncImage(
+                                model = form.profilePictureUrl,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.size(90.dp).clip(CircleShape).border(2.dp, PulseColors.Accent, CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                            if (isUploading) {
+                                Box(Modifier.size(90.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(color = PulseColors.Accent, strokeWidth = 3.dp, modifier = Modifier.size(24.dp))
+                                }
+                            }
+                        }
+                    } else {
+                        Box(Modifier.size(90.dp).background(PulseColors.SurfaceAlt, CircleShape).border(1.dp, PulseColors.Border, CircleShape), contentAlignment = Alignment.Center) {
+                            if (isUploading) {
+                                CircularProgressIndicator(color = PulseColors.Accent, strokeWidth = 3.dp, modifier = Modifier.size(24.dp))
+                            } else {
+                                Text(form.fullName.take(1).uppercase().ifBlank { "M" }, color = PulseColors.Accent, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold)
+                            }
+                        }
+                    }
+                    Box(Modifier.size(30.dp).background(if (isUploading) PulseColors.TextMuted else PulseColors.Accent, CircleShape).border(2.dp, PulseColors.Background, CircleShape).clickable(enabled = !isUploading) { imagePickerLauncher.launch("image/*") }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.CameraAlt, null, tint = PulseColors.Background, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("Add a profile photo", color = PulseColors.TextMuted, fontSize = 11.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+
             SectionLabel("Personal information")
             FormField("Full name", form.fullName, { form = form.copy(fullName = it) }, errors["fullName"])
             FormField("Phone number", form.phone, { form = form.copy(phone = it) }, errors["phone"], keyboardType = KeyboardType.Phone)

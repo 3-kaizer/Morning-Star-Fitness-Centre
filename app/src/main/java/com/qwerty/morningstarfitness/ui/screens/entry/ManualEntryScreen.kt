@@ -124,7 +124,7 @@ fun ManualEntryScreen(
         Spacer(Modifier.height(32.dp))
 
         PrimaryButton(
-            text = "SIGN IN & RECORD ENTRY",
+            text = "SIGN IN",
             onClick = {
                 if (email.isBlank() || password.isBlank()) {
                     error = "Enter your email and password."
