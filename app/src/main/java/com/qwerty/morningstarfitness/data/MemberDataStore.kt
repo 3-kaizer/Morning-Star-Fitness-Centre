@@ -12,6 +12,7 @@ private val Context.memberDataStore by preferencesDataStore(name = "morning_star
 
 class MemberDataStore(private val context: Context) {
     private object Keys {
+        val onboardingCompleted = stringPreferencesKey("onboarding_completed")
         val authUid = stringPreferencesKey("auth_uid")
         val fullName = stringPreferencesKey("full_name")
         val phone = stringPreferencesKey("phone")
@@ -106,7 +107,13 @@ class MemberDataStore(private val context: Context) {
         }
     }
 
-    suspend fun clear() { context.memberDataStore.edit { it.clear() } }
+    suspend fun clear() {
+        context.memberDataStore.edit { p ->
+            val onboarding = p[Keys.onboardingCompleted]
+            p.clear()
+            if (onboarding != null) p[Keys.onboardingCompleted] = onboarding
+        }
+    }
 
     suspend fun saveMembershipMetadata(memberId: String, start: String, expiry: String) {
         context.memberDataStore.edit {
@@ -114,6 +121,14 @@ class MemberDataStore(private val context: Context) {
             it[Keys.membershipStart] = start
             it[Keys.membershipExpiry] = expiry
         }
+    }
+
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        context.memberDataStore.edit { it[Keys.onboardingCompleted] = completed.toString() }
+    }
+
+    suspend fun isOnboardingCompleted(): Boolean {
+        return context.memberDataStore.data.first()[Keys.onboardingCompleted] == "true"
     }
 }
 

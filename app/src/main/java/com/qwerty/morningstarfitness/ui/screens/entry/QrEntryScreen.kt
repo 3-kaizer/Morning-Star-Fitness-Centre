@@ -33,7 +33,9 @@ import java.util.Calendar
 fun QrEntryScreen(
     qrCodeValue: String?, fullName: String?, memberId: String?, status: String, membershipExpiry: String?,
     isLoading: Boolean = false, checkInMessage: String? = null, onBack: () -> Unit,
-    onPasswordEntry: () -> Unit
+    onContinueToDashboard: () -> Unit = {},
+    onPasswordEntry: () -> Unit,
+    onRegister: () -> Unit = {}
 ) {
     Box(Modifier.fillMaxSize().background(PulseColors.Background).padding(horizontal = 18.dp, vertical = 16.dp), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.fillMaxWidth().widthIn(max = 460.dp).verticalScroll(rememberScrollState())) {
@@ -60,12 +62,16 @@ fun QrEntryScreen(
                             }
                         }
                     }
-                    qrCodeValue == null -> {
-                        Box(Modifier.fillMaxWidth().height(220.dp).background(PulseColors.SurfaceAlt, RoundedCornerShape(14.dp)).border(1.dp, PulseColors.Error.copy(alpha = .45f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+                    qrCodeValue == null || memberId == null -> {
+                        Box(Modifier.fillMaxWidth().height(260.dp).background(PulseColors.SurfaceAlt, RoundedCornerShape(14.dp)).border(1.dp, PulseColors.Error.copy(alpha = .45f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(18.dp)) {
-                                Icon(Icons.Default.Info, null, tint = PulseColors.Error, modifier = Modifier.size(30.dp))
-                                Text("QR unavailable", color = PulseColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
-                                Text("Your saved membership does not contain an entry QR yet. Sign in and refresh your membership details.", color = PulseColors.TextMuted, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
+                                Icon(Icons.Default.Info, null, tint = PulseColors.Error, modifier = Modifier.size(36.dp))
+                                Text("Member Record Not Found", color = PulseColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 10.dp))
+                                Text("This account is authenticated but no gym membership was found. Please register to generate your entry QR.", color = PulseColors.TextMuted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+                                Spacer(Modifier.height(16.dp))
+                                com.qwerty.morningstarfitness.ui.components.PrimaryButton("REGISTER NOW", onRegister, Modifier.fillMaxWidth())
+                                Spacer(Modifier.height(8.dp))
+                                GhostButton("Back to Menu", onBack, Modifier.fillMaxWidth())
                             }
                         }
                     }
@@ -85,22 +91,33 @@ fun QrEntryScreen(
                     }
                 }
 
-                Spacer(Modifier.height(18.dp))
-                MemberSummary(fullName ?: "Member", memberId ?: "Pending", status, membershipExpiry ?: "—")
+                if (qrCodeValue != null && memberId != null) {
+                    Spacer(Modifier.height(18.dp))
+                    MemberSummary(fullName ?: "Member", memberId, status, membershipExpiry ?: "—")
 
-                checkInMessage?.let { message ->
-                    Spacer(Modifier.height(12.dp))
-                    Row(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, null, tint = PulseColors.Accent, modifier = Modifier.size(18.dp))
-                        Text(message, color = PulseColors.TextPrimary, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp))
+                    checkInMessage?.let { message ->
+                        Spacer(Modifier.height(12.dp))
+                        Row(Modifier.fillMaxWidth().background(PulseColors.SurfaceAlt, RoundedCornerShape(12.dp)).padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Info, null, tint = PulseColors.Accent, modifier = Modifier.size(18.dp))
+                            Text(message, color = PulseColors.TextPrimary, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp))
+                        }
                     }
-                }
 
-                Spacer(Modifier.height(14.dp))
-                GhostButton(text = "QR NOT WORKING? USE PASSWORD INSTEAD", onClick = onPasswordEntry, modifier = Modifier.fillMaxWidth(), enabled = !isLoading)
+                    Spacer(Modifier.height(14.dp))
+                    GhostButton(text = "QR NOT WORKING? USE PASSWORD INSTEAD", onClick = onPasswordEntry, modifier = Modifier.fillMaxWidth(), enabled = !isLoading)
+                    
+                    Spacer(Modifier.height(10.dp))
+                    com.qwerty.morningstarfitness.ui.components.PrimaryButton(
+                        text = "CONTINUE TO DASHBOARD",
+                        onClick = onContinueToDashboard,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
-            Spacer(Modifier.height(12.dp))
-            GhostButton("Back to dashboard", onBack, Modifier.fillMaxWidth())
+            if (qrCodeValue != null && memberId != null) {
+                Spacer(Modifier.height(12.dp))
+                GhostButton("Back to previous screen", onBack, Modifier.fillMaxWidth())
+            }
         }
     }
 }

@@ -39,6 +39,7 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
     var renewalError by mutableStateOf<String?>(null); private set
     var isRenewing by mutableStateOf(false); private set
     var profileSaveError by mutableStateOf<String?>(null); private set
+    var isOnboardingCompleted by mutableStateOf(false); private set
 
     init { restoreSavedMember() }
 
@@ -162,6 +163,8 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
             val savedUid = get("auth_uid")
             val currentUid = auth.currentUser?.uid
             
+            isOnboardingCompleted = store.isOnboardingCompleted()
+
             // If not logged in, or if logged in as a different user, clear local cache.
             if (currentUid == null || (savedUid.isNotBlank() && savedUid != currentUid)) {
                 store.clear()
@@ -196,6 +199,12 @@ class MemberViewModel(application: Application) : AndroidViewModel(application) 
 
     fun syncWithFirebase() { viewModelScope.launch { refreshFromFirebase() } }
     private fun restoreSavedMember() { viewModelScope.launch { loadLocalMember(); if (auth.currentUser != null) refreshFromFirebase() } }
+    
+    fun completeOnboarding() {
+        isOnboardingCompleted = true
+        viewModelScope.launch { store.setOnboardingCompleted(true) }
+    }
+
     fun updateMemberForm(form: MemberFormState) { memberForm = form; persist() }
     fun updateSelectedPlan(plan: MembershipPlanModel) { selectedPlan = plan; persist() }
     fun updatePaymentMethod(method: String) { paymentMethod = method; persist() }

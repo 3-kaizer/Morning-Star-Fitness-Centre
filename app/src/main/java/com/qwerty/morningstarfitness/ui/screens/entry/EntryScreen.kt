@@ -18,37 +18,89 @@ import com.qwerty.morningstarfitness.ui.theme.PulseColors
 
 @Composable
 fun EntryScreen(
-    isAuthenticated: Boolean,
-    onCreateAccount: () -> Unit,
+    isAuthenticated: Boolean = false,
+    memberName: String? = null,
     onLogin: () -> Unit,
-    onEnterGym: () -> Unit
+    onEnterGym: () -> Unit,
+    onLogout: () -> Unit,
+    onCreateAccount: () -> Unit
 ) {
     Box(
-        modifier = Modifier.fillMaxSize().background(PulseColors.Background).padding(20.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(PulseColors.Background)
+            .padding(20.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().widthIn(max = 420.dp)
-                .background(PulseColors.Surface, RoundedCornerShape(22.dp)).padding(24.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 420.dp)
+                .background(PulseColors.Surface, RoundedCornerShape(22.dp))
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             BrandMark()
-            Spacer(Modifier.height(8.dp))
-            Heading("Welcome to Morning Star")
-            Spacer(Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Heading(if (isAuthenticated) "Welcome back, ${memberName?.split(" ")?.firstOrNull() ?: "Member"}" else "Welcome to Morning Star")
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Choose an option to continue.",
+                text = if (isAuthenticated) 
+                    "You're signed in. Gym entry is just a tap away — show your QR at the desk." 
+                    else "Your dashboard lives behind membership. Gym entry is a separate fast lane — just show your QR.",
                 color = PulseColors.TextMuted,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center
             )
-            Spacer(Modifier.height(28.dp))
 
-            PrimaryButton("CREATE AN ACCOUNT", onCreateAccount, Modifier.fillMaxWidth())
-            Spacer(Modifier.height(12.dp))
-            GhostButton("SIGN IN", onLogin, Modifier.fillMaxWidth())
-            Spacer(Modifier.height(12.dp))
-            PrimaryButton("ENTER THE GYM", onEnterGym, Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(28.dp))
+
+            if (!isAuthenticated) {
+                PrimaryButton(
+                    text = "CREATE AN ACCOUNT",
+                    onClick = onCreateAccount,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                GhostButton(
+                    text = "SIGN IN",
+                    onClick = onLogin,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                PrimaryButton(
+                    text = "ENTER THE GYM  ·  SHOW QR",
+                    onClick = onEnterGym,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "No dashboard detour. Your QR is all the front desk needs.",
+                    color = PulseColors.TextMuted,
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center
+                )
+            } else {
+                PrimaryButton(
+                    text = "ENTER THE GYM",
+                    onClick = onEnterGym,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                GhostButton(
+                    text = "LOG OUT OF ACCOUNT",
+                    onClick = onLogout,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
