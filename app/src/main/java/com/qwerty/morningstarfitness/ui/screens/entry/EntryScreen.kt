@@ -1,15 +1,7 @@
 package com.qwerty.morningstarfitness.ui.screens.entry
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,54 +24,31 @@ fun EntryScreen(
     onEnterGym: () -> Unit
 ) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(PulseColors.Background)
-            .padding(20.dp),
+        modifier = Modifier.fillMaxSize().background(PulseColors.Background).padding(20.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 420.dp)
-                .background(PulseColors.Surface, RoundedCornerShape(22.dp))
-                .padding(24.dp),
+            modifier = Modifier.fillMaxWidth().widthIn(max = 420.dp)
+                .background(PulseColors.Surface, RoundedCornerShape(22.dp)).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             BrandMark()
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(Modifier.height(8.dp))
             Heading("Welcome to Morning Star")
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
-                text = if (isAuthenticated) "Ready for gym entry? Press Enter the Gym when you are ready." else "Your dashboard lives behind membership. Sign in if you are already a member, or create a new account.",
+                text = "Choose an option to continue.",
                 color = PulseColors.TextMuted,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center
             )
+            Spacer(Modifier.height(28.dp))
 
-            Spacer(modifier = Modifier.height(28.dp))
-
-            if (!isAuthenticated) {
-                PrimaryButton(
-                    text = "CREATE AN ACCOUNT",
-                    onClick = onCreateAccount,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                GhostButton(
-                    text = "SIGN IN",
-                    onClick = onLogin,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                PrimaryButton(
-                    text = "ENTER THE GYM",
-                    onClick = onEnterGym,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            PrimaryButton("CREATE AN ACCOUNT", onCreateAccount, Modifier.fillMaxWidth())
+            Spacer(Modifier.height(12.dp))
+            GhostButton("SIGN IN", onLogin, Modifier.fillMaxWidth())
+            Spacer(Modifier.height(12.dp))
+            PrimaryButton("ENTER THE GYM", onEnterGym, Modifier.fillMaxWidth())
         }
     }
 }
