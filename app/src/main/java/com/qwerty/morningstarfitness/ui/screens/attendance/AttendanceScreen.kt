@@ -47,7 +47,7 @@ fun AttendanceScreen(
                 }
                 Column(Modifier.weight(1f).padding(start = 4.dp)) {
                     Text("ACTIVITY", color = PulseColors.Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp)
-                    Heading("History")
+                    Heading("Attendance")
                 }
                 Icon(Icons.Default.History, null, tint = PulseColors.Accent, modifier = Modifier.size(24.dp).padding(end = 12.dp))
             }
@@ -65,10 +65,10 @@ fun AttendanceScreen(
                     .padding(horizontal = 18.dp)
             ) {
                 Spacer(Modifier.height(8.dp))
-                
                 AttendanceHero(totalVisits = entries.size, monthlyVisits = monthlyVisits)
-
                 Spacer(Modifier.height(24.dp))
+                Text("VISIT HISTORY", color = PulseColors.Accent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.3.sp)
+                Spacer(Modifier.height(4.dp))
 
                 if (loadError != null) {
                     ErrorState(message = loadError, onRetry = onRefresh)
