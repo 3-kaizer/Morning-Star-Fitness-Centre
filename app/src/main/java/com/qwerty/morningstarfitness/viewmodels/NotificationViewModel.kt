@@ -42,7 +42,7 @@ class NotificationViewModel : ViewModel() {
                     NotificationRecord(child.key.orEmpty(), title, message, time, createdAt, read)
                 }.sortedByDescending { it.createdAt }
                 unreadCount = records.count { !it.read }
-                notifications = records.map { NotificationItem(it.title, it.message, it.time) }
+                notifications = records.map { NotificationItem(it.title, it.message, it.time, it.read) }
                 createExpiryReminderIfNeeded(memberId, member)
             } catch (e: Exception) {
                 loadError = e.message ?: "Could not load notifications."
@@ -66,15 +66,19 @@ class NotificationViewModel : ViewModel() {
     fun markAllRead() {
         val uid = auth.currentUser?.uid ?: return
         viewModelScope.launch {
-            val member = database.reference.child("members").child(uid).get().await()
-            val memberId = member.child("memberId").getValue(String::class.java).orEmpty()
-            if (memberId.isBlank()) return@launch
-            val snapshot = database.reference.child("notifications").child(memberId).get().await()
-            val updates = buildMap<String, Any> {
-                snapshot.children.forEach { child -> put("${child.key}/read", true) }
+            try {
+                val member = database.reference.child("members").child(uid).get().await()
+                val memberId = member.child("memberId").getValue(String::class.java).orEmpty()
+                if (memberId.isBlank()) return@launch
+                val snapshot = database.reference.child("notifications").child(memberId).get().await()
+                val updates = buildMap<String, Any> {
+                    snapshot.children.forEach { child -> put("${child.key}/read", true) }
+                }
+                if (updates.isNotEmpty()) database.reference.child("notifications").child(memberId).updateChildren(updates).await()
+                refresh()
+            } catch (e: Exception) {
+                loadError = e.message ?: "Could not update notifications."
             }
-            if (updates.isNotEmpty()) database.reference.child("notifications").child(memberId).updateChildren(updates).await()
-            refresh()
         }
     }
 
