@@ -52,28 +52,66 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
     val notificationViewModel: NotificationViewModel = viewModel()
 
     fun firstName(): String = memberViewModel.memberForm?.fullName?.split(" ")?.firstOrNull()?.ifBlank { "there" } ?: "there"
+
     fun goHome(scope: kotlinx.coroutines.CoroutineScope) {
         scope.launch {
             val status = memberViewModel.refreshFromFirebase()
             if (status == MemberRefreshStatus.NOT_FOUND) {
                 authViewModel.signOut()
-                navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
+                navController.navigate(ROUTE_LOGIN) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
                 return@launch
             }
-            // If SUCCESS or FAILURE (transient), we proceed to home. 
-            // If FAILURE, we rely on cached data already loaded in MemberViewModel init.
             attendanceViewModel.fetchAttendanceHistory(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh()
             navController.navigate(ROUTE_HOME) { popUpTo(ROUTE_ENTRY) { inclusive = true } }
         }
     }
 
     NavHost(navController = navController, startDestination = startDestination, modifier = modifier) {
-        composable(ROUTE_ENTRY) { EntryScreen(onCreateAccount = { navController.navigate(ROUTE_REGISTRATION) }, onLogin = { navController.navigate(ROUTE_LOGIN) }, onEnterGym = { navController.navigate(ROUTE_SCAN_ENTRY) }) }
-        composable(ROUTE_SPLASH) { SplashScreen(onFinished = { val destination = if (authViewModel.currentUser() != null) ROUTE_HOME else ROUTE_ONBOARDING; navController.navigate(destination) { popUpTo(ROUTE_SPLASH) { inclusive = true } } }) }
+        composable(ROUTE_ENTRY) {
+            val scope = rememberCoroutineScope()
+            val context = LocalContext.current
+            val isAuthenticated = authViewModel.currentUser() != null
+            EntryScreen(
+                isAuthenticated = isAuthenticated,
+                onCreateAccount = { navController.navigate(ROUTE_REGISTRATION) },
+                onLogin = { navController.navigate(ROUTE_LOGIN) },
+                onEnterGym = {
+                    if (!isAuthenticated) return@EntryScreen
+                    scope.launch {
+                        val status = memberViewModel.refreshFromFirebase()
+                        when (status) {
+                            MemberRefreshStatus.SUCCESS -> {
+                                navController.navigate(ROUTE_SCAN_ENTRY)
+                            }
+                            MemberRefreshStatus.NOT_FOUND -> {
+                                Toast.makeText(context, "Member profile not found. Please visit the front desk.", Toast.LENGTH_LONG).show()
+                            }
+                            MemberRefreshStatus.FAILURE -> {
+                                if (memberViewModel.memberForm != null) {
+                                    navController.navigate(ROUTE_SCAN_ENTRY)
+                                } else {
+                                    Toast.makeText(context, "Could not load your member details. Please try again.", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+        }
+        composable(ROUTE_SPLASH) {
+            SplashScreen(onFinished = {
+                val destination = when {
+                    authViewModel.currentUser() != null -> ROUTE_ENTRY
+                    authViewModel.hasCompletedOnboarding() -> ROUTE_ENTRY
+                    else -> ROUTE_ONBOARDING
+                }
+                navController.navigate(destination) { popUpTo(ROUTE_SPLASH) { inclusive = true } }
+            })
+        }
         composable(ROUTE_ONBOARDING) { OnboardingScreen(onFinished = { navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_ONBOARDING) { inclusive = true } } }) }
         composable(ROUTE_LOGIN) {
             val context = LocalContext.current; val scope = rememberCoroutineScope()
-            ManualEntryScreen(onBack = { navController.popBackStack() }, onSuccess = { goHome(scope) }, onForgotPassword = { email -> authViewModel.sendPasswordReset(email) { _, message -> Toast.makeText(context, message, Toast.LENGTH_LONG).show() } }, onPasswordSubmitted = { email, password -> authViewModel.signIn(email, password, onSuccess = { goHome(scope) }, onError = { message -> Toast.makeText(context, message, Toast.LENGTH_LONG).show() }) })
+            ManualEntryScreen(onBack = { navController.popBackStack() }, onSuccess = { navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_LOGIN) { inclusive = true } } }, onForgotPassword = { email -> authViewModel.sendPasswordReset(email) { _, message -> Toast.makeText(context, message, Toast.LENGTH_LONG).show() } }, onPasswordSubmitted = { email, password -> authViewModel.signIn(email, password, onSuccess = { navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_LOGIN) { inclusive = true } } }, onError = { message -> Toast.makeText(context, message, Toast.LENGTH_LONG).show() }) })
         }
         composable(ROUTE_SCAN_ENTRY) {
             var isMemberDataLoading by remember { mutableStateOf(true) }
@@ -137,34 +175,21 @@ fun AppNavHost(modifier: Modifier = Modifier, navController: NavHostController =
             val scope = rememberCoroutineScope(); var isRefreshing by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) { memberViewModel.refreshFromFirebase(); attendanceViewModel.fetchAttendanceHistory(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh() }
             HomeScreen(firstName = firstName(), profilePictureUrl = memberViewModel.memberForm?.profilePictureUrl, plan = memberViewModel.selectedPlan, onLogout = {
-    authViewModel.signOut()
-    memberViewModel.clearLocalData()
-    attendanceViewModel.clearHistory()
-    notificationViewModel.refresh()
-    navController.navigate(ROUTE_ENTRY) { popUpTo(ROUTE_HOME) { inclusive = true } }
-}, onOpenShop = { navController.navigate(ROUTE_SHOP) }, onOpenProfile = { navController.navigate(ROUTE_PROFILE) }, onOpenAttendance = { navController.navigate(ROUTE_ATTENDANCE) }, onOpenTrainers = { navController.navigate(ROUTE_TRAINERS) }, onOpenGymStatus = { navController.navigate(ROUTE_GYM_STATUS) }, onOpenNotifications = { navController.navigate(ROUTE_NOTIFICATIONS) }, onOpenPaymentHistory = { navController.navigate(ROUTE_PAYMENT_HISTORY) }, onOpenMemberCard = { navController.navigate(ROUTE_MEMBER_CARD) }, onScanEntry = { navController.navigate(ROUTE_SCAN_ENTRY) }, onGetStarted = { navController.navigate(ROUTE_REGISTRATION) }, onRenewMembership = { navController.navigate(ROUTE_RENEW) }, membershipStart = memberViewModel.membershipStart, membershipExpiry = memberViewModel.membershipExpiry, attendanceCount = attendanceViewModel.attendanceHistory.size, trainerCount = 4, notificationCount = notificationViewModel.unreadCount, isLoaded = memberViewModel.isLoaded, isRefreshing = isRefreshing, onRefresh = { if (!isRefreshing) scope.launch { isRefreshing = true; try { memberViewModel.refreshFromFirebase(); attendanceViewModel.fetchAttendanceHistory(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh() } finally { isRefreshing = false } } })
+                authViewModel.signOut()
+                memberViewModel.clearLocalData()
+                attendanceViewModel.clearHistory()
+                notificationViewModel.refresh()
+                navController.navigate(ROUTE_LOGIN) { popUpTo(ROUTE_HOME) { inclusive = true } }
+            }, onOpenShop = { navController.navigate(ROUTE_SHOP) }, onOpenProfile = { navController.navigate(ROUTE_PROFILE) }, onOpenAttendance = { navController.navigate(ROUTE_ATTENDANCE) }, onOpenTrainers = { navController.navigate(ROUTE_TRAINERS) }, onOpenGymStatus = { navController.navigate(ROUTE_GYM_STATUS) }, onOpenNotifications = { navController.navigate(ROUTE_NOTIFICATIONS) }, onOpenPaymentHistory = { navController.navigate(ROUTE_PAYMENT_HISTORY) }, onOpenMemberCard = { navController.navigate(ROUTE_MEMBER_CARD) }, onScanEntry = { navController.navigate(ROUTE_SCAN_ENTRY) }, onGetStarted = { navController.navigate(ROUTE_REGISTRATION) }, onRenewMembership = { navController.navigate(ROUTE_RENEW) }, membershipStart = memberViewModel.membershipStart, membershipExpiry = memberViewModel.membershipExpiry, attendanceCount = attendanceViewModel.attendanceHistory.size, trainerCount = 4, notificationCount = notificationViewModel.unreadCount, isLoaded = memberViewModel.isLoaded, isRefreshing = isRefreshing, onRefresh = { if (!isRefreshing) scope.launch { isRefreshing = true; try { memberViewModel.refreshFromFirebase(); attendanceViewModel.fetchAttendanceHistory(); paymentHistoryViewModel.refresh(); notificationViewModel.refresh() } finally { isRefreshing = false } } })
         }
         composable(ROUTE_ATTENDANCE) {
-            AttendanceScreen(
-                entries = attendanceViewModel.attendanceHistory,
-                monthlyVisits = attendanceViewModel.visitsThisMonth,
-                isLoading = attendanceViewModel.isLoading,
-                loadError = attendanceViewModel.loadError,
-                onRefresh = { attendanceViewModel.fetchAttendanceHistory() },
-                onBack = { navController.popBackStack() }
-            )
+            AttendanceScreen(entries = attendanceViewModel.attendanceHistory, monthlyVisits = attendanceViewModel.visitsThisMonth, isLoading = attendanceViewModel.isLoading, loadError = attendanceViewModel.loadError, onRefresh = { attendanceViewModel.fetchAttendanceHistory() }, onBack = { navController.popBackStack() })
         }
         composable(ROUTE_TRAINERS) { TrainersScreen(onBack = { navController.popBackStack() }, onTrainerSelected = { trainer: TrainerSummary -> navController.navigate(ROUTE_TRAINER_DETAIL + "?name=${trainer.name}&specialty=${trainer.specialty}&schedule=${trainer.schedule}&experience=${trainer.experience}&bio=${java.net.URLEncoder.encode(trainer.bio, "UTF-8")}") }) }
         composable(ROUTE_TRAINER_DETAIL + "?name={name}&specialty={specialty}&schedule={schedule}&experience={experience}&bio={bio}") { backStackEntry -> TrainerDetailScreen(name = backStackEntry.arguments?.getString("name") ?: "Trainer", specialty = backStackEntry.arguments?.getString("specialty") ?: "Fitness", schedule = backStackEntry.arguments?.getString("schedule") ?: "Today", experience = backStackEntry.arguments?.getString("experience") ?: "", bio = backStackEntry.arguments?.getString("bio")?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: "", onBack = { navController.popBackStack() }) }
         composable(ROUTE_GYM_STATUS) { GymStatusScreen(trainerCount = 4, onBack = { navController.popBackStack() }) }
-        composable(ROUTE_PAYMENT_HISTORY) { 
-            PaymentHistoryScreen(
-                entries = paymentHistoryViewModel.entries,
-                membershipPlan = memberViewModel.selectedPlan?.label,
-                membershipExpiry = memberViewModel.membershipExpiry,
-                onRenew = { navController.navigate(ROUTE_RENEW) },
-                onBack = { navController.popBackStack() }
-            ) 
+        composable(ROUTE_PAYMENT_HISTORY) {
+            PaymentHistoryScreen(entries = paymentHistoryViewModel.entries, membershipPlan = memberViewModel.selectedPlan?.label, membershipExpiry = memberViewModel.membershipExpiry, onRenew = { navController.navigate(ROUTE_RENEW) }, onBack = { navController.popBackStack() })
         }
         composable(ROUTE_MEMBER_CARD) { MemberCardScreen(fullName = memberViewModel.memberForm?.fullName ?: "Member", memberId = memberViewModel.memberId, plan = memberViewModel.selectedPlan?.label, status = memberViewModel.getMembershipStatus(), expiry = memberViewModel.membershipExpiry, qrCode = memberViewModel.qrCodeValue, onBack = { navController.popBackStack() }) }
         composable(ROUTE_NOTIFICATIONS) {
